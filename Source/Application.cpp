@@ -6,8 +6,11 @@
 namespace Application
 {
 
-	bool g_running = false;
-	bool g_should_close = false;
+	struct InternalData
+	{
+		bool running = false;
+		bool should_close = false;
+	} static s_data;
 
 	void Init()
 	{
@@ -18,14 +21,14 @@ namespace Application
 
 		Window::Create(window_props);
 		
-		g_running = true;
+		s_data.running = true;
 	}
 
 	void Exit()
 	{
 
 
-		g_running = false;
+		s_data.running = false;
 	}
 
 	void Run()
@@ -37,7 +40,7 @@ namespace Application
 
 		int64_t elapsed = 0;
 
-		while (!g_should_close && g_running)
+		while (!s_data.should_close && s_data.running)
 		{
 			QueryPerformanceCounter(&current_ticks);
 
@@ -61,7 +64,7 @@ namespace Application
 		{
 			if (msg.message == WM_QUIT)
 			{
-				g_should_close = true;
+				s_data.should_close = true;
 				break;
 			}
 
@@ -82,12 +85,12 @@ namespace Application
 
 	bool IsRunning()
 	{
-		return g_running;
+		return s_data.running;
 	}
 
 	bool ShouldClose()
 	{
-		return g_should_close;
+		return s_data.should_close;
 	}
 
 }

@@ -4,9 +4,12 @@
 namespace Window
 {
 
-	HWND g_hWnd;
-	RECT g_window_rect;
-	RECT g_client_rect;
+	struct InternalData
+	{
+		HWND hWnd;
+		RECT window_rect;
+		RECT client_rect;
+	} static s_data;
 
 	LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
@@ -19,7 +22,7 @@ namespace Window
 			case WM_SIZING:
 			{
 				// Window is being resized
-				::GetClientRect(hWnd, &g_client_rect);
+				::GetClientRect(hWnd, &s_data.client_rect);
 			} break;
 			
 			case WM_DESTROY:
@@ -62,21 +65,21 @@ namespace Window
 		int screen_width = ::GetSystemMetrics(SM_CXSCREEN);
 		int screen_height = ::GetSystemMetrics(SM_CYSCREEN);
 
-		g_window_rect = { 0, 0, (LONG)props.width, (LONG)props.height };
-		::AdjustWindowRect(&g_window_rect, WS_OVERLAPPEDWINDOW, FALSE);
+		s_data.window_rect = { 0, 0, (LONG)props.width, (LONG)props.height };
+		::AdjustWindowRect(&s_data.window_rect, WS_OVERLAPPEDWINDOW, FALSE);
 
-		int window_width = g_window_rect.right - g_window_rect.left;
-		int window_height = g_window_rect.bottom - g_window_rect.top;
+		int window_width = s_data.window_rect.right - s_data.window_rect.left;
+		int window_height = s_data.window_rect.bottom - s_data.window_rect.top;
 
 		int window_x = DXV2_MAX(0, (screen_width - window_width) / 2);
 		int window_y = DXV2_MAX(0, (screen_height - window_height) / 2);
 
-		g_hWnd = ::CreateWindowExW(NULL, window_class_name, props.name, WS_OVERLAPPEDWINDOW,
+		s_data.hWnd = ::CreateWindowExW(NULL, window_class_name, props.name, WS_OVERLAPPEDWINDOW,
 			window_x, window_y, window_width, window_height, NULL, NULL, hInst, nullptr);
-		DXV2_ASSERT(g_hWnd && "Failed to create the window\n");
+		DXV2_ASSERT(s_data.hWnd && "Failed to create the window\n");
 
-		::GetClientRect(g_hWnd, &g_client_rect);
-		::ShowWindow(g_hWnd, 1);
+		::GetClientRect(s_data.hWnd, &s_data.client_rect);
+		::ShowWindow(s_data.hWnd, 1);
 	}
 
 	void Destroy()
