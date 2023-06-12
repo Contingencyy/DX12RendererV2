@@ -50,7 +50,7 @@ namespace Window
 		window_class.cbWndExtra = 0;
 		window_class.hIcon = ::LoadIcon(hInst, NULL);
 		window_class.hCursor = ::LoadCursor(NULL, IDC_ARROW);
-		window_class.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+		window_class.hbrBackground = (HBRUSH)(COLOR_WINDOWFRAME);
 		window_class.lpszMenuName = NULL;
 		window_class.lpszClassName = window_class_name;
 		window_class.hIconSm = ::LoadIcon(hInst, NULL);
