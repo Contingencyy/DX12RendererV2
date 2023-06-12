@@ -1,7 +1,4 @@
-#define NOMINMAX
-#define WINDOWS_LEAN_AND_MEAN
-#include <Windows.h>
-
+#include "Pch.h"
 #include "Application.h"
 
 int main(int argc, char* argv[])

@@ -1,14 +1,11 @@
+#include "Pch.h"
 #include "Application.h"
-
-#include <Windows.h>
-#include <stdio.h>
-#include <cstdint>
 
 namespace Application
 {
 
-	bool g_running = false;
-	bool g_should_close = false;
+	static bool g_running = false;
+	static bool g_should_close = false;
 
 	void Init()
 	{
@@ -26,7 +23,7 @@ namespace Application
 
 	void Run()
 	{
-		LARGE_INTEGER current_ticks, last_ticks = {};
+		LARGE_INTEGER current_ticks, last_ticks;
 		LARGE_INTEGER frequency;
 		QueryPerformanceFrequency(&frequency);
 		QueryPerformanceCounter(&last_ticks);
