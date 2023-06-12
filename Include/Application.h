@@ -7,6 +7,7 @@ namespace Application
 	void Run();
 	void Exit();
 	
+	void PollEvents();
 	void Update(float dt);
 	void Render();
 

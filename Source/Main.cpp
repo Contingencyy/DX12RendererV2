@@ -11,12 +11,7 @@ int main(int argc, char* argv[])
 	while (!Application::ShouldClose())
 	{
 		Application::Init();
-
-		while (Application::IsRunning())
-		{
-			Application::Run();
-		}
-		
+		Application::Run();
 		Application::Exit();
 	}
 }
