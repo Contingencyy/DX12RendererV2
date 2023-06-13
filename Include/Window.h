@@ -13,4 +13,6 @@ namespace Window
 	void Create(const WindowProps& props);
 	void Destroy();
 
+	HWND GetHWnd();
+
 }

@@ -9,7 +9,7 @@ namespace Window
 		HWND hWnd;
 		RECT window_rect;
 		RECT client_rect;
-	} static s_data;
+	} static data;
 
 	LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
@@ -22,7 +22,7 @@ namespace Window
 			case WM_SIZING:
 			{
 				// Window is being resized
-				::GetClientRect(hWnd, &s_data.client_rect);
+				::GetClientRect(hWnd, &data.client_rect);
 			} break;
 			
 			case WM_DESTROY:
@@ -59,32 +59,37 @@ namespace Window
 		window_class.hIconSm = ::LoadIcon(hInst, NULL);
 
 		static ATOM atom = ::RegisterClassExW(&window_class);
-		DXV2_ASSERT(atom > 0 && "Failed to register the window class");
+		DX_ASSERT(atom > 0 && "Failed to register the window class");
 
 		// Create the actual window
 		int screen_width = ::GetSystemMetrics(SM_CXSCREEN);
 		int screen_height = ::GetSystemMetrics(SM_CYSCREEN);
 
-		s_data.window_rect = { 0, 0, (LONG)props.width, (LONG)props.height };
-		::AdjustWindowRect(&s_data.window_rect, WS_OVERLAPPEDWINDOW, FALSE);
+		data.window_rect = { 0, 0, (LONG)props.width, (LONG)props.height };
+		::AdjustWindowRect(&data.window_rect, WS_OVERLAPPEDWINDOW, FALSE);
 
-		int window_width = s_data.window_rect.right - s_data.window_rect.left;
-		int window_height = s_data.window_rect.bottom - s_data.window_rect.top;
+		int window_width = data.window_rect.right - data.window_rect.left;
+		int window_height = data.window_rect.bottom - data.window_rect.top;
 
-		int window_x = DXV2_MAX(0, (screen_width - window_width) / 2);
-		int window_y = DXV2_MAX(0, (screen_height - window_height) / 2);
+		int window_x = DX_MAX(0, (screen_width - window_width) / 2);
+		int window_y = DX_MAX(0, (screen_height - window_height) / 2);
 
-		s_data.hWnd = ::CreateWindowExW(NULL, window_class_name, props.name, WS_OVERLAPPEDWINDOW,
+		data.hWnd = ::CreateWindowExW(NULL, window_class_name, props.name, WS_OVERLAPPEDWINDOW,
 			window_x, window_y, window_width, window_height, NULL, NULL, hInst, nullptr);
-		DXV2_ASSERT(s_data.hWnd && "Failed to create the window\n");
+		DX_ASSERT(data.hWnd && "Failed to create the window\n");
 
-		::GetClientRect(s_data.hWnd, &s_data.client_rect);
-		::ShowWindow(s_data.hWnd, 1);
+		::GetClientRect(data.hWnd, &data.client_rect);
+		::ShowWindow(data.hWnd, 1);
 	}
 
 	void Destroy()
 	{
 		// This does not do anything yet
+	}
+
+	HWND GetHWnd()
+	{
+		return data.hWnd;
 	}
 
 }

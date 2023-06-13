@@ -10,25 +10,36 @@ namespace Application
 	{
 		bool running = false;
 		bool should_close = false;
-	} static s_data;
+	} static data;
 
 	void Init()
 	{
+		// Initialize the window
 		Window::WindowProps window_props = {};
 		window_props.name = L"DXV2 Renderer";
 		window_props.width = 1280;
 		window_props.height = 720;
 
 		Window::Create(window_props);
+
+		// Initialize the renderer
+		Renderer::RendererInitParams renderer_init_params = {};
+		renderer_init_params.hWnd = Window::GetHWnd();
+		renderer_init_params.width = window_props.width;
+		renderer_init_params.height = window_props.height;
+
+		Renderer::Init(renderer_init_params);
 		
-		s_data.running = true;
+		data.running = true;
 	}
 
 	void Exit()
 	{
+		data.running = false;
 
+		Renderer::Exit();
 
-		s_data.running = false;
+		Window::Destroy();
 	}
 
 	void Run()
@@ -40,7 +51,7 @@ namespace Application
 
 		int64_t elapsed = 0;
 
-		while (!s_data.should_close && s_data.running)
+		while (!data.should_close && data.running)
 		{
 			QueryPerformanceCounter(&current_ticks);
 
@@ -64,7 +75,7 @@ namespace Application
 		{
 			if (msg.message == WM_QUIT)
 			{
-				s_data.should_close = true;
+				data.should_close = true;
 				break;
 			}
 
@@ -85,12 +96,12 @@ namespace Application
 
 	bool IsRunning()
 	{
-		return s_data.running;
+		return data.running;
 	}
 
 	bool ShouldClose()
 	{
-		return s_data.should_close;
+		return data.should_close;
 	}
 
 }

@@ -11,11 +11,15 @@
 #include <assert.h>
 
 // Useful defines
-#define DXV2_ASSERT(x) assert(x)
-#define DXV2_MIN(x, y) ((x) < (y) ? (x) : (y))
-#define DXV2_MAX(x, y) ((x) > (y) ? (x) : (y))
+#define DX_ASSERT(x) assert(x)
+#define DX_MIN(x, y) ((x) < (y) ? (x) : (y))
+#define DX_MAX(x, y) ((x) > (y) ? (x) : (y))
 
 // Windows headers
+#include <d3d12.h>
+#include <dxgi1_6.h>
+#include <dxgidebug.h>
+
 #define NOMINMAX
 #define WINDOWS_LEAN_AND_MEAN
 #include <Windows.h>
