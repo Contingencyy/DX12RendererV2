@@ -237,7 +237,8 @@ namespace Renderer
 			::CloseHandle(fence_event);
 		}
 
-		// Why does this crash when the fence value for all back buffers is still 0?
+		// If the command list has not been closed before, this will crash, so we need to check here if the fence value for the next back buffer is bigger than 0
+		// which means that the command list was closed before once
 		if (d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx] > 0)
 		{
 			d3d_state.command_allocator[d3d_state.current_back_buffer_idx]->Reset();
