@@ -13,4 +13,6 @@ namespace Renderer
 	void Init(const RendererInitParams& params);
 	void Exit();
 
+	void Render();
+
 }

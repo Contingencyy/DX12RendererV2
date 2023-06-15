@@ -91,7 +91,7 @@ namespace Application
 
 	void Render()
 	{
-
+		Renderer::Render();
 	}
 
 	bool IsRunning()
