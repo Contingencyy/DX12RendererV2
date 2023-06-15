@@ -242,6 +242,8 @@ namespace Renderer
 		// ID3D12CommandList::Close will set the command list into non recording state
 		// ID3D12CommandList::Reset will set the command list into recording state, this can be called even if the commands from this command list are still in-flight
 		// ID3D12CommandAllocator::Reset can only be called when the commands from that allocator are no longer in-flight (one allocator per back buffer seems reasonable)
+		// Only one command list associated with a command allocator can be in the recording state at any given time, which means that for each thread that populates
+		// a command list, you need at least one command allocator and at least one command list
 		if (d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx] > 0)
 		{
 			d3d_state.command_allocator[d3d_state.current_back_buffer_idx]->Reset();
