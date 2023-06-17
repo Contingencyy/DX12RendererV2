@@ -369,6 +369,33 @@ namespace Renderer
 		d3d_state.vertex_buffer->Map(0, nullptr, (void**)&d3d_state.vertex_buffer_ptr);
 	}
 
+	void ResizeRenderResolution(uint32_t new_width, uint32_t new_height)
+	{
+		d3d_state.render_width = new_width;
+		d3d_state.render_height = new_height;
+
+		Flush();
+
+		DXGI_SWAP_CHAIN_DESC swap_chain_desc;
+		d3d_state.swapchain->GetDesc(&swap_chain_desc);
+		d3d_state.swapchain->ResizeBuffers(3, d3d_state.render_width, d3d_state.render_height, swap_chain_desc.BufferDesc.Format, swap_chain_desc.Flags);
+	}
+
+	void CheckForWindowResize()
+	{
+		RECT window_rect;
+		HWND hWnd;
+		d3d_state.swapchain->GetHwnd(&hWnd);
+		::GetClientRect(hWnd, &window_rect);
+		uint32_t window_width = DX_MAX(1u, window_rect.right - window_rect.left);
+		uint32_t window_height = DX_MAX(1u, window_rect.bottom - window_rect.top);
+		if (d3d_state.render_width != window_width ||
+			d3d_state.render_height != window_height)
+		{
+			ResizeRenderResolution(window_width, window_height);
+		}
+	}
+
 	void Init(const RendererInitParams& params)
 	{
 		// Creates the adapter, device, command queue and swapchain, etc.
@@ -390,7 +417,6 @@ namespace Renderer
 		// Some examples on the internet wait right after presenting, which is not ideal
 		if (!(d3d_state.fence->GetCompletedValue() >= d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx]))
 		{
-			printf("Wait for fence..\n");
 			HANDLE fence_event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 			DX_ASSERT(fence_event && "Failed to create fence event handle");
 
@@ -422,7 +448,7 @@ namespace Renderer
 	{
 	}
 
-	void Render()
+	void RenderFrame()
 	{
 		// ----------------------------------------------------------------------------------
 		// Create the render target view for the current back buffer
@@ -513,6 +539,26 @@ namespace Renderer
 		d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx] = ++d3d_state.fence_value;
 		d3d_state.swapchain_command_queue->Signal(d3d_state.fence, d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx]);
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
+
+		// ----------------------------------------------------------------------------------
+		// Check if the window has been resized, and resize the render resolution accordingly
+		
+		CheckForWindowResize();
+	}
+
+	void Flush()
+	{
+		if (!(d3d_state.fence->GetCompletedValue() >= d3d_state.fence_value))
+		{
+			HANDLE fence_event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+			DX_ASSERT(fence_event && "Failed to create fence event handle");
+
+			DX_CHECK_HR(d3d_state.fence->SetEventOnCompletion(d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx], fence_event));
+			::WaitForSingleObject(fence_event, (DWORD)UINT32_MAX);
+
+			// Do I need to close the fence event handle every time? Rather keep it around if I can
+			::CloseHandle(fence_event);
+		}
 	}
 
 }

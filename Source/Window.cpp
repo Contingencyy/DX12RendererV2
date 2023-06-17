@@ -13,28 +13,24 @@ namespace Window
 
 	LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	{
-		//if (Application::IsRunning())
-		if (true)
+		switch (msg)
 		{
-			switch (msg)
-			{
-			case WM_SIZE:
-			case WM_SIZING:
-			{
-				// Window is being resized
-				::GetClientRect(hWnd, &data.client_rect);
-			} break;
+		case WM_SIZE:
+		case WM_SIZING:
+		{
+			// Window is being resized
+			::GetClientRect(hWnd, &data.client_rect);
+		} break;
 			
-			case WM_DESTROY:
-			{
-				::PostQuitMessage(0);
-			} break;
+		case WM_DESTROY:
+		{
+			::PostQuitMessage(0);
+		} break;
 
-			default:
-			{
-				return ::DefWindowProcW(hWnd, msg, wParam, lParam);
-			} break;
-			}
+		default:
+		{
+			return ::DefWindowProcW(hWnd, msg, wParam, lParam);
+		} break;
 		}
 	}
 

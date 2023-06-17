@@ -15,6 +15,8 @@ namespace Renderer
 
 	void BeginFrame();
 	void EndFrame();
-	void Render();
+	void RenderFrame();
+
+	void Flush();
 
 }

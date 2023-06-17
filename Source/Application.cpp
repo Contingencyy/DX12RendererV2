@@ -93,7 +93,7 @@ namespace Application
 	{
 		Renderer::BeginFrame();
 		Renderer::EndFrame();
-		Renderer::Render();
+		Renderer::RenderFrame();
 	}
 
 	bool IsRunning()
