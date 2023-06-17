@@ -91,6 +91,8 @@ namespace Application
 
 	void Render()
 	{
+		Renderer::BeginFrame();
+		Renderer::EndFrame();
 		Renderer::Render();
 	}
 

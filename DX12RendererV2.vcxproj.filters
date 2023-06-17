@@ -45,4 +45,7 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Include\Shaders\Default_VS_PS.hlsl" />
+  </ItemGroup>
 </Project>

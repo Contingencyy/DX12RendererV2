@@ -15,10 +15,15 @@
 #define DX_MIN(x, y) ((x) < (y) ? (x) : (y))
 #define DX_MAX(x, y) ((x) > (y) ? (x) : (y))
 
+#define DX_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
 // Windows headers
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
+
+// DXC
+#include "DXC/inc/dxcapi.h"
 
 #define NOMINMAX
 #define WINDOWS_LEAN_AND_MEAN
