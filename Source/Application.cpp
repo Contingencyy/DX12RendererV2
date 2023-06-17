@@ -45,7 +45,6 @@ namespace Application
 		params.format = Renderer::TextureFormat_RGBA8;
 		params.width = result.width;
 		params.height = result.height;
-		params.bpp = result.bpp;
 		params.bytes = result.bytes;
 		params.name = L"Assets/Textures/kermit.png";
 		Renderer::UploadTexture(params);

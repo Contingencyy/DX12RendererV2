@@ -22,6 +22,7 @@
 #define DX_GB(x) DX_MB(x) * 1024
 
 #define DX_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#define DX_ALIGN_UP(x, align) (((x) + (align - 1)) & ~(align - 1))
 
 #define DX_GPU_VALIDATION 0
 

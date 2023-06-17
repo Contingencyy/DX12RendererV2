@@ -786,23 +786,25 @@ namespace Renderer
 		cmd_list->ResourceBarrier(1, &copy_dst_barrier);
 
 		D3D12_RESOURCE_DESC dst_desc = texture->GetDesc();
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT dst_footprint;
-		uint64_t dst_byte_size;
-		d3d_state.device->GetCopyableFootprints(&dst_desc, 0, 1, 0, &dst_footprint, nullptr, nullptr, &dst_byte_size);
+		D3D12_SUBRESOURCE_FOOTPRINT dst_footprint = {};
+		dst_footprint.Format = texture->GetDesc().Format;
+		dst_footprint.Width = params.width;
+		dst_footprint.Height = params.height;
+		dst_footprint.Depth = 1;
+		dst_footprint.RowPitch = DX_ALIGN_UP(params.width * TextureFormatBPP(params.format), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT src_footprint = {};
-		src_footprint.Footprint = dst_footprint.Footprint;
+		src_footprint.Footprint = dst_footprint;
 		src_footprint.Offset = 0;
 
 		uint8_t* src_ptr = params.bytes;
 		uint8_t* dst_ptr = d3d_state.upload_buffer_ptr;
-		uint32_t src_pitch = params.width * params.bpp;
-		uint32_t dst_pitch = dst_footprint.Footprint.RowPitch;
+		uint32_t dst_pitch = dst_footprint.RowPitch;
 
 		for (uint32_t y = 0; y < params.height; ++y)
 		{
-			memcpy(dst_ptr, src_ptr, src_pitch);
-			src_ptr += src_pitch;
+			memcpy(dst_ptr, src_ptr, dst_pitch);
+			src_ptr += params.width * TextureFormatBPP(params.format);
 			dst_ptr += dst_pitch;
 		}
 
