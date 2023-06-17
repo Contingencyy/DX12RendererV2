@@ -19,4 +19,9 @@ namespace Renderer
 
 	void Flush();
 
+	void OnWindowResize(uint32_t new_width, uint32_t new_height);
+	void OnImGuiRender();
+
+	bool IsInitialized();
+
 }

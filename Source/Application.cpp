@@ -96,13 +96,7 @@ namespace Application
 		Renderer::BeginFrame();
 
 		// Draw Dear ImGui menus
-		ImGui::Begin("Window1");
-		ImGui::Text("This is window 1");
-		ImGui::End();
-
-		ImGui::Begin("Window2");
-		ImGui::Text("This is window 2");
-		ImGui::End();
+		Renderer::OnImGuiRender();
 
 		// End the current frame and render it
 		Renderer::EndFrame();

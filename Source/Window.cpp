@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Window.h"
+#include "Renderer.h"
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -27,8 +28,12 @@ namespace Window
 		{
 			// Window is being resized
 			::GetClientRect(hWnd, &data.client_rect);
+			if (Renderer::IsInitialized())
+			{
+				Renderer::OnWindowResize(data.client_rect.right - data.client_rect.left, data.client_rect.bottom - data.client_rect.top);
+			}
 		} break;
-			
+
 		case WM_DESTROY:
 		{
 			::PostQuitMessage(0);

@@ -24,7 +24,29 @@ if (FAILED(hr)) \
 } \
 else
 
-#define DX_RELEASE_OBJECT(object) if ((object)) { (object)->Release(); } (object) = nullptr
+// NOTE: We could switch this if we want to, for now it will check if the new reference count
+// of the ID3D12Object is actually 0, since we wanted to properly release it
+// I like it better this way (for now), it forces us to actually be wary of the reference count and properly releasing objects
+#if 1
+#define DX_RELEASE_OBJECT(object) \
+if ((object)) \
+{ \
+	ULONG ref_count = (object)->Release(); \
+	DX_ASSERT(ref_count == 0); \
+} \
+(object) = nullptr
+#else
+#define DX_RELEASE_OBJECT(object) \
+if ((object)) \
+{ \
+	ULONG ref_count = (object)->Release(); \
+	while (ref_count > 0) \
+	{ \
+		ref_count = (object)->Release(); \
+	} \
+} \
+(object) = nullptr
+#endif
 
 namespace Renderer
 {
@@ -60,6 +82,7 @@ namespace Renderer
 		// Swap chain
 		IDXGISwapChain4* swapchain;
 		ID3D12CommandQueue* swapchain_command_queue;
+		ID3D12Resource* back_buffers[3];
 		bool tearing_supported;
 		bool vsync_enabled;
 		uint32_t current_back_buffer_idx;
@@ -69,6 +92,7 @@ namespace Renderer
 		// TODO: Should separate some of these into an API agnostic renderer state, since these do not depend on D3D, same goes for vsync
 		uint32_t render_width;
 		uint32_t render_height;
+		uint64_t frame_index;
 
 		// Command queue, list and allocator
 		ID3D12CommandQueue* command_queue_direct;
@@ -90,6 +114,8 @@ namespace Renderer
 		RasterPipeline default_raster_pipeline;
 		ID3D12Resource* vertex_buffer;
 		Vertex* vertex_buffer_ptr;
+
+		bool initialized;
 	} static d3d_state;
 
 	ID3D12CommandQueue* CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type, D3D12_COMMAND_QUEUE_PRIORITY priority)
@@ -188,10 +214,11 @@ namespace Renderer
 
 		IDxcBlob* blob;
 		result->GetResult(&blob);
-		return blob;
 
 		DX_RELEASE_OBJECT(shader_text);
 		DX_RELEASE_OBJECT(result);
+
+		return blob;
 	}
 
 	ID3D12PipelineState* CreatePipelineState(ID3D12RootSignature* root_sig, const wchar_t* vs_path, const wchar_t* ps_path)
@@ -341,6 +368,8 @@ namespace Renderer
 		//d3d_state.command_queue_direct = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
 		for (uint32_t back_buffer_idx = 0; back_buffer_idx < 3; ++back_buffer_idx)
 		{
+			d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&d3d_state.back_buffers[back_buffer_idx]));
+
 			DX_CHECK_HR_ERR(d3d_state.device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&d3d_state.command_allocator[back_buffer_idx])), "Failed to create command allocator");
 			DX_CHECK_HR_ERR(d3d_state.device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3d_state.command_allocator[back_buffer_idx], nullptr, IID_PPV_ARGS(&d3d_state.command_list[back_buffer_idx])), "Failed to create command list");
 		}
@@ -395,8 +424,8 @@ namespace Renderer
 		// Init DX12 imgui backend
 		HWND hWnd;
 		DXGI_SWAP_CHAIN_DESC swap_chain_desc;
-		d3d_state.swapchain->GetHwnd(&hWnd);
-		d3d_state.swapchain->GetDesc(&swap_chain_desc);
+		DX_CHECK_HR(d3d_state.swapchain->GetHwnd(&hWnd));
+		DX_CHECK_HR(d3d_state.swapchain->GetDesc(&swap_chain_desc));
 
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
@@ -406,31 +435,35 @@ namespace Renderer
 			{ d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size });
 	}
 
+	void ResizeBackBuffers()
+	{
+		// Release all back buffers
+		for (uint32_t back_buffer_idx = 0; back_buffer_idx < 3; ++back_buffer_idx)
+		{
+			ULONG ref_count = d3d_state.back_buffers[back_buffer_idx]->Release();
+			// NOTE: Back buffer resources share a reference count, so we want to see if the outstanding references are actually all released
+			DX_ASSERT(ref_count + back_buffer_idx == 2);
+			d3d_state.back_buffer_fence_values[back_buffer_idx] = d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx];
+		}
+
+		// Resize swap chain back buffers and update the current back buffer index
+		DXGI_SWAP_CHAIN_DESC swap_chain_desc;
+		DX_CHECK_HR(d3d_state.swapchain->GetDesc(&swap_chain_desc));
+		DX_CHECK_HR_ERR(d3d_state.swapchain->ResizeBuffers(3, d3d_state.render_width, d3d_state.render_height,
+			swap_chain_desc.BufferDesc.Format, swap_chain_desc.Flags), "Failed to resize swap chain back buffers");
+
+		for (uint32_t back_buffer_idx = 0; back_buffer_idx < 3; ++back_buffer_idx)
+		{
+			DX_CHECK_HR(d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&d3d_state.back_buffers[back_buffer_idx])));
+		}
+
+		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
+	}
+
 	void ResizeRenderResolution(uint32_t new_width, uint32_t new_height)
 	{
 		d3d_state.render_width = new_width;
 		d3d_state.render_height = new_height;
-
-		Flush();
-
-		DXGI_SWAP_CHAIN_DESC swap_chain_desc;
-		d3d_state.swapchain->GetDesc(&swap_chain_desc);
-		d3d_state.swapchain->ResizeBuffers(3, d3d_state.render_width, d3d_state.render_height, swap_chain_desc.BufferDesc.Format, swap_chain_desc.Flags);
-	}
-
-	void CheckForWindowResize()
-	{
-		RECT window_rect;
-		HWND hWnd;
-		d3d_state.swapchain->GetHwnd(&hWnd);
-		::GetClientRect(hWnd, &window_rect);
-		uint32_t window_width = DX_MAX(1u, window_rect.right - window_rect.left);
-		uint32_t window_height = DX_MAX(1u, window_rect.bottom - window_rect.top);
-		if (d3d_state.render_width != window_width ||
-			d3d_state.render_height != window_height)
-		{
-			ResizeRenderResolution(window_width, window_height);
-		}
 	}
 
 	void Init(const RendererInitParams& params)
@@ -439,6 +472,8 @@ namespace Renderer
 		InitD3DState(params);
 		InitPipelines();
 		InitDearImGui();
+
+		d3d_state.initialized = true;
 	}
 
 	void Exit()
@@ -456,7 +491,7 @@ namespace Renderer
 		// We wait here right before actually using the back buffer again to minimize the amount of time
 		// to maximize the amount of work the CPU can do before actually having to wait on the GPU.
 		// Some examples on the internet wait right after presenting, which is not ideal
-		if (!(d3d_state.fence->GetCompletedValue() >= d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx]))
+		if (d3d_state.fence->GetCompletedValue() < d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx])
 		{
 			HANDLE fence_event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 			DX_ASSERT(fence_event && "Failed to create fence event handle");
@@ -507,8 +542,7 @@ namespace Renderer
 		rtv_desc.Texture2D.MipSlice = 0;
 		rtv_desc.Texture2D.PlaneSlice = 0;
 
-		ID3D12Resource* back_buffer;
-		d3d_state.swapchain->GetBuffer(d3d_state.current_back_buffer_idx, IID_PPV_ARGS(&back_buffer));
+		ID3D12Resource* back_buffer = d3d_state.back_buffers[d3d_state.current_back_buffer_idx];
 		d3d_state.device->CreateRenderTargetView(back_buffer, &rtv_desc, d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart());
 
 		// ----------------------------------------------------------------------------------
@@ -599,24 +633,56 @@ namespace Renderer
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
 		// ----------------------------------------------------------------------------------
-		// Check if the window has been resized, and resize the render resolution accordingly
+		// Increase the total frame index
 		
-		CheckForWindowResize();
+		d3d_state.frame_index++;
 	}
 
 	void Flush()
 	{
-		if (!(d3d_state.fence->GetCompletedValue() >= d3d_state.fence_value))
+		if (d3d_state.fence->GetCompletedValue() < d3d_state.fence_value)
 		{
 			HANDLE fence_event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 			DX_ASSERT(fence_event && "Failed to create fence event handle");
 
-			DX_CHECK_HR(d3d_state.fence->SetEventOnCompletion(d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx], fence_event));
+			DX_CHECK_HR(d3d_state.fence->SetEventOnCompletion(d3d_state.fence_value, fence_event));
 			::WaitForSingleObject(fence_event, (DWORD)UINT32_MAX);
 
 			// Do I need to close the fence event handle every time? Rather keep it around if I can
 			::CloseHandle(fence_event);
 		}
+	}
+
+	void OnWindowResize(uint32_t new_width, uint32_t new_height)
+	{
+		new_width = DX_MAX(1u, new_width);
+		new_height = DX_MAX(1u, new_height);
+
+		if (d3d_state.render_width != new_width ||
+			d3d_state.render_height != new_height)
+		{
+			Flush();
+			// NOTE: We always have to resize the back buffers to the window rect
+			// But for now we also resize the actual render resolution
+			ResizeRenderResolution(new_width, new_height);
+			ResizeBackBuffers();
+		}
+	}
+
+	void OnImGuiRender()
+	{
+		ImGui::Begin("Renderer");
+
+		ImGui::Text("Back buffer count: %u", 3);
+		ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
+		ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
+
+		ImGui::End();
+	}
+
+	bool IsInitialized()
+	{
+		return d3d_state.initialized;
 	}
 
 }
