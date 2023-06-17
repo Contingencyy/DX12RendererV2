@@ -1,6 +1,10 @@
 #include "Pch.h"
 #include "Renderer.h"
 
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_win32.h"
+#include "imgui/imgui_impl_dx12.h"
+
 // TODO: Should add HR error explanation to these macros as well
 #define DX_CHECK_HR_ERR(hr, error) \
 do { \
@@ -41,6 +45,12 @@ namespace Renderer
 		ID3D12PipelineState* pipeline_state;
 	};
 
+	enum ReservedDescriptor : uint32_t
+	{
+		ReservedDescriptor_DearImGui,
+		ReservedDescriptor_Count
+	};
+
 	struct D3DState
 	{
 		// Adapter and device
@@ -69,6 +79,7 @@ namespace Renderer
 
 		// Descriptor heaps
 		ID3D12DescriptorHeap* descriptor_heap_rtv;
+		ID3D12DescriptorHeap* descriptor_heap_cbv_srv_uav;
 
 		// DXC shader compiler
 		IDxcCompiler* dxc_compiler;
@@ -95,12 +106,12 @@ namespace Renderer
 		return command_queue;
 	}
 
-	ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors)
+	ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors, D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc = {};
 		descriptor_heap_desc.Type = type;
 		descriptor_heap_desc.NumDescriptors = num_descriptors;
-		descriptor_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		descriptor_heap_desc.Flags = flags;
 		descriptor_heap_desc.NodeMask = 0;
 
 		ID3D12DescriptorHeap* descriptor_heap;
@@ -242,7 +253,7 @@ namespace Renderer
 		return pipeline_state;
 	}
 
-	void CreateD3DState(const RendererInitParams& params)
+	void InitD3DState(const RendererInitParams& params)
 	{
 #ifdef _DEBUG
 		// Enable debug layer
@@ -337,6 +348,7 @@ namespace Renderer
 
 		// Create descriptor heaps
 		d3d_state.descriptor_heap_rtv = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
+		d3d_state.descriptor_heap_cbv_srv_uav = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 
 		// Create the DXC compiler state
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
@@ -344,7 +356,7 @@ namespace Renderer
 		d3d_state.dxc_utils->CreateDefaultIncludeHandler(&d3d_state.dxc_include_handler);
 	}
 
-	void CreatePipelines()
+	void InitPipelines()
 	{
 		d3d_state.default_raster_pipeline.root_sig = CreateRootSignature();
 		d3d_state.default_raster_pipeline.pipeline_state = CreatePipelineState(d3d_state.default_raster_pipeline.root_sig,
@@ -367,6 +379,31 @@ namespace Renderer
 
 		d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&d3d_state.vertex_buffer));
 		d3d_state.vertex_buffer->Map(0, nullptr, (void**)&d3d_state.vertex_buffer_ptr);
+	}
+
+	void InitDearImGui()
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+		ImGui::StyleColorsDark();
+
+		// Init DX12 imgui backend
+		HWND hWnd;
+		DXGI_SWAP_CHAIN_DESC swap_chain_desc;
+		d3d_state.swapchain->GetHwnd(&hWnd);
+		d3d_state.swapchain->GetDesc(&swap_chain_desc);
+
+		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		ImGui_ImplWin32_Init(hWnd);
+		ImGui_ImplDX12_Init(d3d_state.device, 3, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav,
+			{ d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size },
+			{ d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size });
 	}
 
 	void ResizeRenderResolution(uint32_t new_width, uint32_t new_height)
@@ -399,12 +436,16 @@ namespace Renderer
 	void Init(const RendererInitParams& params)
 	{
 		// Creates the adapter, device, command queue and swapchain, etc.
-		CreateD3DState(params);
-		CreatePipelines();
+		InitD3DState(params);
+		InitPipelines();
+		InitDearImGui();
 	}
 
 	void Exit()
 	{
+		ImGui_ImplDX12_Shutdown();
+		ImGui_ImplWin32_Shutdown();
+		ImGui::DestroyContext();
 	}
 
 	void BeginFrame()
@@ -442,6 +483,13 @@ namespace Renderer
 			d3d_state.command_allocator[d3d_state.current_back_buffer_idx]->Reset();
 			d3d_state.command_list[d3d_state.current_back_buffer_idx]->Reset(d3d_state.command_allocator[d3d_state.current_back_buffer_idx], nullptr);
 		}
+
+		// ----------------------------------------------------------------------------------
+		// Begin a new frame for Dear ImGui
+
+		ImGui_ImplWin32_NewFrame();
+		ImGui_ImplDX12_NewFrame();
+		ImGui::NewFrame();
 	}
 
 	void EndFrame()
@@ -507,6 +555,16 @@ namespace Renderer
 		vbv.SizeInBytes = vbv.StrideInBytes * 6;
 		cmd_list->IASetVertexBuffers(0, 1, &vbv);
 		cmd_list->DrawInstanced(6, 1, 0, 0);
+
+		// ----------------------------------------------------------------------------------
+		// Render Dear ImGui
+
+		ImGui::Render();
+
+		cmd_list->OMSetRenderTargets(1, &d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart(), FALSE, nullptr);
+		cmd_list->SetDescriptorHeaps(1, &d3d_state.descriptor_heap_cbv_srv_uav);
+
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
 
 		// ----------------------------------------------------------------------------------
 		// Transition the back buffer to the present state

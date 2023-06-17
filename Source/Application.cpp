@@ -3,6 +3,8 @@
 #include "Window.h"
 #include "Renderer.h"
 
+#include "imgui/imgui.h"
+
 namespace Application
 {
 
@@ -86,12 +88,23 @@ namespace Application
 
 	void Update(float dt)
 	{
-		printf("%f\n", dt);
 	}
 
 	void Render()
 	{
+		// Begin a new frame
 		Renderer::BeginFrame();
+
+		// Draw Dear ImGui menus
+		ImGui::Begin("Window1");
+		ImGui::Text("This is window 1");
+		ImGui::End();
+
+		ImGui::Begin("Window2");
+		ImGui::Text("This is window 2");
+		ImGui::End();
+
+		// End the current frame and render it
 		Renderer::EndFrame();
 		Renderer::RenderFrame();
 	}
