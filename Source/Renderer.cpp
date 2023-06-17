@@ -51,14 +51,9 @@ if ((object)) \
 namespace Renderer
 {
 
-	struct DX_Vec3
-	{
-		float x, y, z;
-	};
-
 	struct Vertex
 	{
-		DX_Vec3 pos;
+		Math::Vec3 pos;
 	};
 
 	struct RasterPipeline

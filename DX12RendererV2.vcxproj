@@ -182,6 +182,7 @@
     <ClInclude Include="Extern\imgui\imgui_impl_dx12.h" />
     <ClInclude Include="Extern\imgui\imgui_impl_win32.h" />
     <ClInclude Include="Include\Application.h" />
+    <ClInclude Include="Include\Math.h" />
     <ClInclude Include="Include\Pch.h" />
     <ClInclude Include="Include\Renderer.h" />
     <ClInclude Include="Include\Window.h" />

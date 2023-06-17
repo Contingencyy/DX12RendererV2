@@ -6,6 +6,8 @@
 
 */
 
+#include "Math.h"
+
 #include <stdio.h>
 #include <cstdint>
 #include <assert.h>

@@ -71,6 +71,9 @@
     <ClInclude Include="Extern\imgui\imgui.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Include\Math.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Include\Shaders\Default_VS_PS.hlsl" />
