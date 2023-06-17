@@ -24,7 +24,7 @@
     <ClCompile Include="Source\Pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Renderer.cpp">
+    <ClCompile Include="Source\Renderer\Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\Window.cpp">
@@ -48,6 +48,9 @@
     <ClCompile Include="Extern\imgui\imgui_widgets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\FileIO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Include\Application.h">
@@ -56,7 +59,7 @@
     <ClInclude Include="Include\Pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Include\Renderer.h">
+    <ClInclude Include="Include\Renderer\Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\Window.h">
@@ -71,7 +74,10 @@
     <ClInclude Include="Extern\imgui\imgui.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Include\Math.h">
+    <ClInclude Include="Include\DXMath.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\FileIO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,7 +1,8 @@
 #include "Pch.h"
 #include "Application.h"
 #include "Window.h"
-#include "Renderer.h"
+#include "Renderer/Renderer.h"
+#include "FileIO.h"
 
 #include "imgui/imgui.h"
 
@@ -16,7 +17,9 @@ namespace Application
 
 	void Init()
 	{
+		// ----------------------------------------------------------------------------------
 		// Initialize the window
+
 		Window::WindowProps window_props = {};
 		window_props.name = L"DXV2 Renderer";
 		window_props.width = 1280;
@@ -24,13 +27,29 @@ namespace Application
 
 		Window::Create(window_props);
 
+		// ----------------------------------------------------------------------------------
 		// Initialize the renderer
+
 		Renderer::RendererInitParams renderer_init_params = {};
 		renderer_init_params.hWnd = Window::GetHWnd();
 		renderer_init_params.width = window_props.width;
 		renderer_init_params.height = window_props.height;
 
 		Renderer::Init(renderer_init_params);
+
+		// ----------------------------------------------------------------------------------
+		// Load textures
+
+		FileIO::LoadImageResult result = FileIO::LoadImage("Assets/Textures/kermit.png");
+		Renderer::UploadTextureParams params = {};
+		params.format = Renderer::TextureFormat_RGBA8;
+		params.width = result.width;
+		params.height = result.height;
+		params.bpp = result.bpp;
+		params.bytes = result.bytes;
+		params.name = L"Assets/Textures/kermit.png";
+		Renderer::UploadTexture(params);
+		delete params.bytes;
 		
 		data.running = true;
 	}

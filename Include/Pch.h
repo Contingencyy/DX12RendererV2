@@ -6,7 +6,7 @@
 
 */
 
-#include "Math.h"
+#include "DXMath.h"
 
 #include <stdio.h>
 #include <cstdint>
@@ -17,7 +17,13 @@
 #define DX_MIN(x, y) ((x) < (y) ? (x) : (y))
 #define DX_MAX(x, y) ((x) > (y) ? (x) : (y))
 
+#define DX_KB(x) x * 1024
+#define DX_MB(x) DX_KB(x) * 1024
+#define DX_GB(x) DX_MB(x) * 1024
+
 #define DX_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
+#define DX_GPU_VALIDATION 0
 
 // Windows headers
 #include <d3d12.h>

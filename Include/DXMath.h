@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Math
+namespace DXMath
 {
 
 	struct Vec2
