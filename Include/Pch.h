@@ -6,6 +6,7 @@
 
 */
 
+#include "Allocator.h"
 #include "DXMath.h"
 
 #include <stdio.h>
@@ -17,12 +18,13 @@
 #define DX_MIN(x, y) ((x) < (y) ? (x) : (y))
 #define DX_MAX(x, y) ((x) > (y) ? (x) : (y))
 
-#define DX_KB(x) x * 1024
-#define DX_MB(x) DX_KB(x) * 1024
-#define DX_GB(x) DX_MB(x) * 1024
+#define DX_KB(x) ((x) << 10)
+#define DX_MB(x) ((x) << 20)
+#define DX_GB(x) ((x) << 30)
 
 #define DX_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-#define DX_ALIGN_UP(x, align) (((x) + (align - 1)) & ~(align - 1))
+#define DX_ALIGN_POW2(x, align) ((intptr_t)(x) + ((align) - 1) & (-(intptr_t)(align)))
+#define DX_ALIGN_DOWN_POW2(x, align) ((intptr_t)(x) & (-(intptr_t)(align)))
 
 #define DX_GPU_VALIDATION 0
 

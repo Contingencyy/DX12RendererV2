@@ -40,15 +40,21 @@ namespace Application
 		// ----------------------------------------------------------------------------------
 		// Load textures
 
-		FileIO::LoadImageResult result = FileIO::LoadImage("Assets/Textures/kermit.png");
-		Renderer::UploadTextureParams params = {};
-		params.format = Renderer::TextureFormat_RGBA8;
-		params.width = result.width;
-		params.height = result.height;
-		params.bytes = result.bytes;
-		params.name = L"Assets/Textures/kermit.png";
-		Renderer::UploadTexture(params);
-		delete params.bytes;
+		FileIO::LoadImageResult texture = FileIO::LoadImage("Assets/Textures/kermit.png");
+		Renderer::UploadTextureParams texture_params = {};
+		texture_params.format = Renderer::TextureFormat_RGBA8;
+		texture_params.width = texture.width;
+		texture_params.height = texture.height;
+		texture_params.bytes = texture.bytes;
+		texture_params.name = L"Assets/Textures/kermit.png";
+		Renderer::UploadTexture(texture_params);
+		delete texture_params.bytes;
+
+		FileIO::LoadGLTFResult mesh = FileIO::LoadGLTF("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
+		for (uint32_t i = 0; i < mesh.num_meshes; ++i)
+		{
+			Renderer::UploadMesh(mesh.mesh_params[i]);
+		}
 		
 		data.running = true;
 	}
@@ -85,6 +91,10 @@ namespace Application
 			Render();
 
 			last_ticks = current_ticks;
+
+			// We reset and decommit the thread local allocator every frame
+			g_thread_alloc.Reset();
+			g_thread_alloc.Decommit();
 		}
 	}
 

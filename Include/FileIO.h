@@ -1,5 +1,11 @@
 #pragma once
 
+namespace Renderer
+{
+	struct Vertex;
+	struct UploadMeshParams;
+}
+
 namespace FileIO
 {
 
@@ -11,5 +17,13 @@ namespace FileIO
 	};
 
 	LoadImageResult LoadImage(const char* filepath);
+
+	struct LoadGLTFResult
+	{
+		uint32_t num_meshes;
+		Renderer::UploadMeshParams* mesh_params;
+	};
+
+	LoadGLTFResult LoadGLTF(const char* filepath);
 
 }

@@ -53,12 +53,6 @@ namespace Renderer
 #define DX_DESCRIPTOR_HEAP_SIZE_RTV 1
 #define DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV 1024
 
-	struct Vertex
-	{
-		DXMath::Vec3 pos;
-		DXMath::Vec2 uv;
-	};
-
 	struct RasterPipeline
 	{
 		ID3D12RootSignature* root_sig;
@@ -69,6 +63,14 @@ namespace Renderer
 	{
 		ReservedDescriptor_DearImGui,
 		ReservedDescriptor_Count
+	};
+
+	struct MeshResource
+	{
+		D3D12_VERTEX_BUFFER_VIEW vbv;
+		ID3D12Resource* vertex_buffer;
+		D3D12_INDEX_BUFFER_VIEW ibv;
+		ID3D12Resource* index_buffer;
 	};
 
 	struct D3DState
@@ -117,6 +119,7 @@ namespace Renderer
 		ID3D12Resource* upload_buffer;
 		uint8_t* upload_buffer_ptr;
 		ID3D12Resource* test_texture;
+		MeshResource mesh_resources[64];
 
 		bool initialized;
 	} static d3d_state;
@@ -331,6 +334,29 @@ namespace Renderer
 		DX_RELEASE_OBJECT(ps_blob);
 
 		return pipeline_state;
+	}
+
+	ID3D12Resource* CreateBuffer(const wchar_t* name, uint64_t size_in_bytes)
+	{
+		D3D12_HEAP_PROPERTIES heap_props = {};
+		heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+		D3D12_RESOURCE_DESC resource_desc = {};
+		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		resource_desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
+		resource_desc.Width = size_in_bytes;
+		resource_desc.Height = 1;
+		resource_desc.DepthOrArraySize = 1;
+		resource_desc.MipLevels = 1;
+		resource_desc.SampleDesc.Count = 1;
+		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+		ID3D12Resource* buffer;
+		DX_CHECK_HR(d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE,
+			&resource_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)));
+		return buffer;
 	}
 
 	ID3D12Resource* CreateUploadBuffer(const wchar_t* name, uint64_t size_in_bytes)
@@ -712,29 +738,14 @@ namespace Renderer
 		cmd_list->SetPipelineState(d3d_state.default_raster_pipeline.pipeline_state);
 		cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-		d3d_state.vertex_buffer_ptr[0].pos = {  0.5,  0.5, 0.0 };
-		d3d_state.vertex_buffer_ptr[0].uv = {   1.0,  0.0 };
-		d3d_state.vertex_buffer_ptr[1].pos = {  0.5, -0.5, 0.0 };
-		d3d_state.vertex_buffer_ptr[1].uv = {   1.0,  1.0 };
-		d3d_state.vertex_buffer_ptr[2].pos = { -0.5, -0.5, 0.0 };
-		d3d_state.vertex_buffer_ptr[2].uv = {   0.0,  1.0 };
-		d3d_state.vertex_buffer_ptr[3].pos = { -0.5, -0.5, 0.0 };
-		d3d_state.vertex_buffer_ptr[3].uv = {   0.0,  1.0 };
-		d3d_state.vertex_buffer_ptr[4].pos = { -0.5,  0.5, 0.0 };
-		d3d_state.vertex_buffer_ptr[4].uv = {   0.0,  0.0 };
-		d3d_state.vertex_buffer_ptr[5].pos = {  0.5,  0.5, 0.0 };
-		d3d_state.vertex_buffer_ptr[5].uv = {   1.0,  0.0 };
-
-		D3D12_VERTEX_BUFFER_VIEW vbv = {};
-		vbv.BufferLocation = d3d_state.vertex_buffer->GetGPUVirtualAddress();
-		vbv.StrideInBytes = sizeof(Vertex);
-		vbv.SizeInBytes = vbv.StrideInBytes * 6;
-		cmd_list->IASetVertexBuffers(0, 1, &vbv);
 		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav };
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heaps);
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		cmd_list->SetGraphicsRootDescriptorTable(0, { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + cbv_srv_uav_increment_size });
-		cmd_list->DrawInstanced(6, 1, 0, 0);
+
+		cmd_list->IASetVertexBuffers(0, 1, &d3d_state.mesh_resources[0].vbv);
+		cmd_list->IASetIndexBuffer(&d3d_state.mesh_resources[0].ibv);
+		cmd_list->DrawIndexedInstanced(d3d_state.mesh_resources[0].ibv.SizeInBytes / 4, 1, 0, 0, 0);
 
 		// ----------------------------------------------------------------------------------
 		// Render Dear ImGui
@@ -781,7 +792,6 @@ namespace Renderer
 
 	void UploadTexture(const UploadTextureParams& params)
 	{
-		//DX_ASSERT(params.bpp == TextureFormatBPP(params.format) && "Specified texture format and actual bytes per pixel do not match");
 		ID3D12Resource* texture = CreateTexture(params.name, params.format, params.width, params.height);
 
 		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_list[d3d_state.current_back_buffer_idx];
@@ -796,7 +806,7 @@ namespace Renderer
 		dst_footprint.Width = params.width;
 		dst_footprint.Height = params.height;
 		dst_footprint.Depth = 1;
-		dst_footprint.RowPitch = DX_ALIGN_UP(params.width * TextureFormatBPP(params.format), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+		dst_footprint.RowPitch = DX_ALIGN_POW2(params.width * TextureFormatBPP(params.format), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT src_footprint = {};
 		src_footprint.Footprint = dst_footprint;
@@ -835,6 +845,9 @@ namespace Renderer
 		d3d_state.swapchain_command_queue->ExecuteCommandLists(1, command_lists);
 		cmd_list->Reset(d3d_state.command_allocator[d3d_state.current_back_buffer_idx], nullptr);
 
+		uint64_t fence_value = ++d3d_state.fence_value;
+		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
+
 		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
 		srv_desc.Format = texture->GetDesc().Format;
 		srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -848,6 +861,50 @@ namespace Renderer
 		d3d_state.device->CreateShaderResourceView(texture, &srv_desc, { d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr + cbv_srv_uav_increment_size });
 
 		d3d_state.test_texture = texture;
+	}
+
+	void UploadMesh(const UploadMeshParams& params)
+	{
+		size_t vb_total_bytes = params.num_vertices * sizeof(Vertex);
+		size_t ib_total_bytes = params.num_indices * sizeof(uint32_t);
+
+		ID3D12Resource* vertex_buffer = CreateBuffer(L"Vertex buffer", vb_total_bytes);
+		ID3D12Resource* index_buffer = CreateBuffer(L"Index buffer", ib_total_bytes);
+
+		memcpy(d3d_state.upload_buffer_ptr, params.vertices, vb_total_bytes);
+		memcpy(d3d_state.upload_buffer_ptr + vb_total_bytes, params.indices, ib_total_bytes);
+
+		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_list[d3d_state.current_back_buffer_idx];
+		cmd_list->CopyBufferRegion(vertex_buffer, 0, d3d_state.upload_buffer, 0, vb_total_bytes);
+		cmd_list->CopyBufferRegion(index_buffer, 0, d3d_state.upload_buffer, vb_total_bytes, ib_total_bytes);
+
+		D3D12_RESOURCE_BARRIER barriers[] =
+		{
+			TransitionBarrier(vertex_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
+			TransitionBarrier(index_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER)
+		};
+		cmd_list->ResourceBarrier(2, barriers);
+
+		cmd_list->Close();
+		ID3D12CommandList* const command_lists[] = { cmd_list };
+		d3d_state.swapchain_command_queue->ExecuteCommandLists(1, command_lists);
+		cmd_list->Reset(d3d_state.command_allocator[d3d_state.current_back_buffer_idx], nullptr);
+
+		uint64_t fence_value = ++d3d_state.fence_value;
+		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
+
+		static uint32_t num_mesh_resources = 0;
+
+		d3d_state.mesh_resources[num_mesh_resources].vertex_buffer = vertex_buffer;
+		d3d_state.mesh_resources[num_mesh_resources].vbv.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
+		d3d_state.mesh_resources[num_mesh_resources].vbv.SizeInBytes = vb_total_bytes;
+		d3d_state.mesh_resources[num_mesh_resources].vbv.StrideInBytes = sizeof(Vertex);
+		d3d_state.mesh_resources[num_mesh_resources].index_buffer = index_buffer;
+		d3d_state.mesh_resources[num_mesh_resources].ibv.BufferLocation = index_buffer->GetGPUVirtualAddress();
+		d3d_state.mesh_resources[num_mesh_resources].ibv.Format = DXGI_FORMAT_R32_UINT;
+		d3d_state.mesh_resources[num_mesh_resources].ibv.SizeInBytes = ib_total_bytes;
+
+		num_mesh_resources++;
 	}
 
 	void OnWindowResize(uint32_t new_width, uint32_t new_height)

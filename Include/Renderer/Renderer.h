@@ -25,6 +25,20 @@ namespace Renderer
 		const wchar_t* name;
 	};
 
+	struct Vertex
+	{
+		DXMath::Vec3 pos;
+		DXMath::Vec2 uv;
+	};
+
+	struct UploadMeshParams
+	{
+		uint32_t num_vertices;
+		Vertex* vertices;
+		uint32_t num_indices;
+		uint32_t* indices;
+	};
+
 	void Init(const RendererInitParams& params);
 	void Exit();
 	void Flush();
@@ -34,6 +48,7 @@ namespace Renderer
 	void RenderFrame();
 
 	void UploadTexture(const UploadTextureParams& params);
+	void UploadMesh(const UploadMeshParams& params);
 
 	void OnWindowResize(uint32_t new_width, uint32_t new_height);
 	void OnImGuiRender();
