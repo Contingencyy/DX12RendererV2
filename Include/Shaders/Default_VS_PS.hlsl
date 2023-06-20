@@ -1,3 +1,10 @@
+struct SceneData
+{
+    float4x4 view_projection;
+};
+
+ConstantBuffer<SceneData> g_scene_cb : register(b0);
+
 struct VertexLayout
 {
 	float3 pos : POSITION;
@@ -13,8 +20,8 @@ struct VSOut
 VSOut VSMain(VertexLayout vertex)
 {
 	VSOut OUT;
-
-	OUT.pos = float4(vertex.pos, 1);
+	
+    OUT.pos = mul(g_scene_cb.view_projection, float4(vertex.pos, 1));
 	OUT.uv = vertex.uv;
 
 	return OUT;

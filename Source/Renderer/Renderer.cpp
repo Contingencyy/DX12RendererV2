@@ -115,6 +115,14 @@ namespace Renderer
 		ID3D12Resource* vertex_buffer;
 		Vertex* vertex_buffer_ptr;
 
+		// Scene constant buffer
+		struct SceneData
+		{
+			DXMath::Mat4x4 view_projection;
+		};
+		ID3D12Resource* scene_cb;
+		SceneData* scene_cb_ptr;
+
 		// Upload buffer
 		ID3D12Resource* upload_buffer;
 		uint8_t* upload_buffer_ptr;
@@ -180,11 +188,16 @@ namespace Renderer
 		ranges[0].RegisterSpace = 0;
 		ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
 
-		D3D12_ROOT_PARAMETER1 root_params[1] = {};
-		root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		root_params[0].DescriptorTable.NumDescriptorRanges = DX_ARRAY_SIZE(ranges);
-		root_params[0].DescriptorTable.pDescriptorRanges = ranges;
-		root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		D3D12_ROOT_PARAMETER1 root_params[2] = {};
+		root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		root_params[0].Descriptor.ShaderRegister = 0;
+		root_params[0].Descriptor.RegisterSpace = 0;
+		root_params[0].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
+		root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		root_params[1].DescriptorTable.NumDescriptorRanges = DX_ARRAY_SIZE(ranges);
+		root_params[1].DescriptorTable.pDescriptorRanges = ranges;
+		root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 		D3D12_STATIC_SAMPLER_DESC static_samplers[1] = {};
 		static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
@@ -550,6 +563,10 @@ namespace Renderer
 		DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&d3d_state.dxc_utils));
 		d3d_state.dxc_utils->CreateDefaultIncludeHandler(&d3d_state.dxc_include_handler);
 
+		// Create the scene constant buffer
+		d3d_state.scene_cb = CreateUploadBuffer(L"Scene constant buffer", sizeof(D3DState::SceneData));
+		d3d_state.scene_cb->Map(0, nullptr, (void**)&d3d_state.scene_cb_ptr);
+
 		// Create the upload buffer
 		d3d_state.upload_buffer = CreateUploadBuffer(L"Generic upload buffer", DX_MB(256));
 		d3d_state.upload_buffer->Map(0, nullptr, (void**)&d3d_state.upload_buffer_ptr);
@@ -741,7 +758,9 @@ namespace Renderer
 		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav };
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heaps);
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		cmd_list->SetGraphicsRootDescriptorTable(0, { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + cbv_srv_uav_increment_size });
+		d3d_state.scene_cb_ptr->view_projection = DXMath::Mat4x4();
+		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
+		cmd_list->SetGraphicsRootDescriptorTable(1, { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + cbv_srv_uav_increment_size });
 
 		cmd_list->IASetVertexBuffers(0, 1, &d3d_state.mesh_resources[0].vbv);
 		cmd_list->IASetIndexBuffer(&d3d_state.mesh_resources[0].ibv);
