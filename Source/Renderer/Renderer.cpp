@@ -39,6 +39,7 @@ if ((object)) \
 	ULONG ref_count = (object)->Release(); \
 	while (ref_count > 0) \
 	{ \
+/* Add a log warning here if it has to release more than once */ \
 		ref_count = (object)->Release(); \
 	} \
 } \
@@ -47,6 +48,10 @@ if ((object)) \
 
 namespace Renderer
 {
+
+#define DX_BACK_BUFFER_COUNT 3
+#define DX_DESCRIPTOR_HEAP_SIZE_RTV 1
+#define DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV 1024
 
 	struct Vertex
 	{
@@ -75,11 +80,11 @@ namespace Renderer
 		// Swap chain
 		IDXGISwapChain4* swapchain;
 		ID3D12CommandQueue* swapchain_command_queue;
-		ID3D12Resource* back_buffers[3];
+		ID3D12Resource* back_buffers[DX_BACK_BUFFER_COUNT];
 		bool tearing_supported;
 		bool vsync_enabled;
 		uint32_t current_back_buffer_idx;
-		uint64_t back_buffer_fence_values[3];
+		uint64_t back_buffer_fence_values[DX_BACK_BUFFER_COUNT];
 
 		// Render resolution
 		// TODO: Should separate some of these into an API agnostic renderer state, since these do not depend on D3D, same goes for vsync
@@ -89,8 +94,8 @@ namespace Renderer
 
 		// Command queue, list and allocator
 		//ID3D12CommandQueue* command_queue_direct;
-		ID3D12GraphicsCommandList6* command_list[3];
-		ID3D12CommandAllocator* command_allocator[3];
+		ID3D12GraphicsCommandList6* command_list[DX_BACK_BUFFER_COUNT];
+		ID3D12CommandAllocator* command_allocator[DX_BACK_BUFFER_COUNT];
 		uint64_t fence_value;
 		ID3D12Fence* fence;
 
@@ -484,7 +489,7 @@ namespace Renderer
 		swap_chain_desc.Stereo = FALSE;
 		swap_chain_desc.SampleDesc = { 1, 0 };
 		swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		swap_chain_desc.BufferCount = 3;
+		swap_chain_desc.BufferCount = DX_BACK_BUFFER_COUNT;
 		swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
 		swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
@@ -501,7 +506,7 @@ namespace Renderer
 
 		// Create command queue, list, and allocator
 		//d3d_state.command_queue_direct = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
-		for (uint32_t back_buffer_idx = 0; back_buffer_idx < 3; ++back_buffer_idx)
+		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
 		{
 			d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&d3d_state.back_buffers[back_buffer_idx]));
 
@@ -511,8 +516,8 @@ namespace Renderer
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.fence)), "Failed to create fence");
 
 		// Create descriptor heaps
-		d3d_state.descriptor_heap_rtv = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
-		d3d_state.descriptor_heap_cbv_srv_uav = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1024, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+		d3d_state.descriptor_heap_rtv = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
+		d3d_state.descriptor_heap_cbv_srv_uav = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 
 		// Create the DXC compiler state
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
@@ -570,7 +575,7 @@ namespace Renderer
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		ImGui_ImplWin32_Init(hWnd);
-		ImGui_ImplDX12_Init(d3d_state.device, 3, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav,
+		ImGui_ImplDX12_Init(d3d_state.device, DX_BACK_BUFFER_COUNT, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav,
 			{ d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size },
 			{ d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size });
 	}
@@ -578,11 +583,11 @@ namespace Renderer
 	void ResizeBackBuffers()
 	{
 		// Release all back buffers
-		for (uint32_t back_buffer_idx = 0; back_buffer_idx < 3; ++back_buffer_idx)
+		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
 		{
 			ULONG ref_count = d3d_state.back_buffers[back_buffer_idx]->Release();
 			// NOTE: Back buffer resources share a reference count, so we want to see if the outstanding references are actually all released
-			DX_ASSERT(ref_count + back_buffer_idx == 2);
+			DX_ASSERT(ref_count + back_buffer_idx == (DX_BACK_BUFFER_COUNT - 1));
 			d3d_state.back_buffer_fence_values[back_buffer_idx] = d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx];
 		}
 
@@ -592,7 +597,7 @@ namespace Renderer
 		DX_CHECK_HR_ERR(d3d_state.swapchain->ResizeBuffers(3, d3d_state.render_width, d3d_state.render_height,
 			swap_chain_desc.BufferDesc.Format, swap_chain_desc.Flags), "Failed to resize swap chain back buffers");
 
-		for (uint32_t back_buffer_idx = 0; back_buffer_idx < 3; ++back_buffer_idx)
+		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
 		{
 			DX_CHECK_HR(d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&d3d_state.back_buffers[back_buffer_idx])));
 		}
@@ -865,7 +870,7 @@ namespace Renderer
 	{
 		ImGui::Begin("Renderer");
 
-		ImGui::Text("Back buffer count: %u", 3);
+		ImGui::Text("Back buffer count: %u", DX_BACK_BUFFER_COUNT);
 		ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
 		ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
 
