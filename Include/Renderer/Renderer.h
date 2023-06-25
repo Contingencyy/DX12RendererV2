@@ -43,7 +43,7 @@ namespace Renderer
 	void Exit();
 	void Flush();
 
-	void BeginFrame();
+	void BeginFrame(const Mat4x4& view, const Mat4x4& projection);
 	void EndFrame();
 	void RenderFrame();
 

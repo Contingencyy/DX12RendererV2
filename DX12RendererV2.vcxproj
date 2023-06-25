@@ -172,12 +172,14 @@
     <ClCompile Include="Source\Allocator.cpp" />
     <ClCompile Include="Source\FileIO.cpp" />
     <ClCompile Include="Source\Application.cpp" />
+    <ClCompile Include="Source\Input.cpp" />
     <ClCompile Include="Source\Main.cpp" />
     <ClCompile Include="Source\Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Source\Renderer\Renderer.cpp" />
+    <ClCompile Include="Source\Scene.cpp" />
     <ClCompile Include="Source\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -188,8 +190,10 @@
     <ClInclude Include="Include\Application.h" />
     <ClInclude Include="Include\FileIO.h" />
     <ClInclude Include="Include\DXMath.h" />
+    <ClInclude Include="Include\Input.h" />
     <ClInclude Include="Include\Pch.h" />
     <ClInclude Include="Include\Renderer\Renderer.h" />
+    <ClInclude Include="Include\Scene.h" />
     <ClInclude Include="Include\Window.h" />
   </ItemGroup>
   <ItemGroup>

@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Window.h"
+#include "Input.h"
 #include "Renderer/Renderer.h"
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -32,6 +33,16 @@ namespace Window
 			{
 				Renderer::OnWindowResize(data.client_rect.right - data.client_rect.left, data.client_rect.bottom - data.client_rect.top);
 			}
+		} break;
+
+		case WM_KEYDOWN:
+		{
+			Input::OnKeyPressed(wParam);
+		} break;
+
+		case WM_KEYUP:
+		{
+			Input::OnKeyReleased(wParam);
 		} break;
 
 		case WM_DESTROY:

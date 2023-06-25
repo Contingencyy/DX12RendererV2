@@ -3,6 +3,7 @@
 #include "Window.h"
 #include "Renderer/Renderer.h"
 #include "FileIO.h"
+#include "Scene.h"
 
 #include "imgui/imgui.h"
 
@@ -116,12 +117,13 @@ namespace Application
 
 	void Update(float dt)
 	{
+		Scene::Update(dt);
 	}
 
 	void Render()
 	{
 		// Begin a new frame
-		Renderer::BeginFrame();
+		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
 
 		// Draw Dear ImGui menus
 		Renderer::OnImGuiRender();

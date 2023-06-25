@@ -72,6 +72,18 @@ namespace Renderer
 		D3D12_INDEX_BUFFER_VIEW ibv;
 		ID3D12Resource* index_buffer;
 	};
+	
+	struct SceneData
+	{
+		Mat4x4 view;
+		Mat4x4 projection;
+		Mat4x4 view_projection;
+	};
+
+	struct InstanceData
+	{
+		Mat4x4 transform;
+	};
 
 	struct D3DState
 	{
@@ -112,14 +124,8 @@ namespace Renderer
 
 		// Pipeline states
 		RasterPipeline default_raster_pipeline;
-		ID3D12Resource* vertex_buffer;
-		Vertex* vertex_buffer_ptr;
 
 		// Scene constant buffer
-		struct SceneData
-		{
-			DXMath::Mat4x4 view_projection;
-		};
 		ID3D12Resource* scene_cb;
 		SceneData* scene_cb_ptr;
 
@@ -128,11 +134,15 @@ namespace Renderer
 		uint8_t* upload_buffer_ptr;
 		ID3D12Resource* test_texture;
 		MeshResource mesh_resources[64];
+		
+		ID3D12Resource* instance_buffer;
+		InstanceData* instance_buffer_ptr;
+		D3D12_VERTEX_BUFFER_VIEW instance_vbv;
 
 		bool initialized;
 	} static d3d_state;
 
-	uint32_t TextureFormatBPP(TextureFormat format)
+	static uint32_t TextureFormatBPP(TextureFormat format)
 	{
 		switch (format)
 		{
@@ -141,7 +151,7 @@ namespace Renderer
 		}
 	}
 
-	DXGI_FORMAT TextureFormatToDXGIFormat(TextureFormat format)
+	static DXGI_FORMAT TextureFormatToDXGIFormat(TextureFormat format)
 	{
 		switch (format)
 		{
@@ -150,7 +160,7 @@ namespace Renderer
 		}
 	}
 
-	ID3D12CommandQueue* CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type, D3D12_COMMAND_QUEUE_PRIORITY priority)
+	static ID3D12CommandQueue* CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type, D3D12_COMMAND_QUEUE_PRIORITY priority)
 	{
 		D3D12_COMMAND_QUEUE_DESC command_queue_desc = {};
 		command_queue_desc.Type = type;
@@ -164,7 +174,7 @@ namespace Renderer
 		return command_queue;
 	}
 
-	ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors, D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE)
+	static ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors, D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE)
 	{
 		D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc = {};
 		descriptor_heap_desc.Type = type;
@@ -178,7 +188,7 @@ namespace Renderer
 		return descriptor_heap;
 	}
 
-	ID3D12RootSignature* CreateRootSignature()
+	static ID3D12RootSignature* CreateRootSignature()
 	{
 		D3D12_DESCRIPTOR_RANGE1 ranges[1] = {};
 		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
@@ -241,7 +251,7 @@ namespace Renderer
 		return root_sig;
 	}
 
-	IDxcBlob* CompileShader(const wchar_t* filepath, const wchar_t* entry_point, const wchar_t* target_profile)
+	static IDxcBlob* CompileShader(const wchar_t* filepath, const wchar_t* entry_point, const wchar_t* target_profile)
 	{
 		// TODO: Use shader reflection to figure out the bindings/root signature?
 		HRESULT hr;
@@ -288,7 +298,7 @@ namespace Renderer
 		return blob;
 	}
 
-	ID3D12PipelineState* CreatePipelineState(ID3D12RootSignature* root_sig, const wchar_t* vs_path, const wchar_t* ps_path)
+	static ID3D12PipelineState* CreatePipelineState(ID3D12RootSignature* root_sig, const wchar_t* vs_path, const wchar_t* ps_path)
 	{
 		D3D12_RENDER_TARGET_BLEND_DESC rt_blend_desc = {};
 		rt_blend_desc.BlendEnable = TRUE;
@@ -305,7 +315,11 @@ namespace Renderer
 		D3D12_INPUT_ELEMENT_DESC input_element_desc[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TRANSFORM", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+			{ "TRANSFORM", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+			{ "TRANSFORM", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+			{ "TRANSFORM", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 		};
 
 		IDxcBlob* vs_blob = CompileShader(vs_path, L"VSMain", L"vs_6_5");
@@ -349,7 +363,7 @@ namespace Renderer
 		return pipeline_state;
 	}
 
-	ID3D12Resource* CreateBuffer(const wchar_t* name, uint64_t size_in_bytes)
+	static ID3D12Resource* CreateBuffer(const wchar_t* name, uint64_t size_in_bytes)
 	{
 		D3D12_HEAP_PROPERTIES heap_props = {};
 		heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -372,7 +386,7 @@ namespace Renderer
 		return buffer;
 	}
 
-	ID3D12Resource* CreateUploadBuffer(const wchar_t* name, uint64_t size_in_bytes)
+	static ID3D12Resource* CreateUploadBuffer(const wchar_t* name, uint64_t size_in_bytes)
 	{
 		D3D12_HEAP_PROPERTIES heap_props = {};
 		heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
@@ -395,7 +409,7 @@ namespace Renderer
 		return buffer;
 	}
 
-	ID3D12Resource* CreateTexture(const wchar_t* name, TextureFormat format, uint32_t width, uint32_t height)
+	static ID3D12Resource* CreateTexture(const wchar_t* name, TextureFormat format, uint32_t width, uint32_t height)
 	{
 		D3D12_HEAP_PROPERTIES heap_props = {};
 		heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -419,7 +433,7 @@ namespace Renderer
 		return texture;
 	}
 
-	D3D12_RESOURCE_BARRIER TransitionBarrier(ID3D12Resource* resource, D3D12_RESOURCE_STATES state_before, D3D12_RESOURCE_STATES state_after)
+	static D3D12_RESOURCE_BARRIER TransitionBarrier(ID3D12Resource* resource, D3D12_RESOURCE_STATES state_before, D3D12_RESOURCE_STATES state_after)
 	{
 		D3D12_RESOURCE_BARRIER barrier = {};
 		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -432,7 +446,7 @@ namespace Renderer
 		return barrier;
 	}
 
-	void CommandQueueWaitOnFence(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value)
+	static void CommandQueueWaitOnFence(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value)
 	{
 		cmd_queue->Signal(fence, fence_value);
 
@@ -448,7 +462,7 @@ namespace Renderer
 		}
 	}
 
-	void InitD3DState(const RendererInitParams& params)
+	static void InitD3DState(const RendererInitParams& params)
 	{
 #ifdef _DEBUG
 		// Enable debug layer
@@ -564,15 +578,22 @@ namespace Renderer
 		d3d_state.dxc_utils->CreateDefaultIncludeHandler(&d3d_state.dxc_include_handler);
 
 		// Create the scene constant buffer
-		d3d_state.scene_cb = CreateUploadBuffer(L"Scene constant buffer", sizeof(D3DState::SceneData));
+		d3d_state.scene_cb = CreateUploadBuffer(L"Scene constant buffer", sizeof(SceneData));
 		d3d_state.scene_cb->Map(0, nullptr, (void**)&d3d_state.scene_cb_ptr);
 
 		// Create the upload buffer
 		d3d_state.upload_buffer = CreateUploadBuffer(L"Generic upload buffer", DX_MB(256));
 		d3d_state.upload_buffer->Map(0, nullptr, (void**)&d3d_state.upload_buffer_ptr);
+
+		// Create the instance buffer
+		d3d_state.instance_buffer = CreateUploadBuffer(L"Instance buffer", sizeof(InstanceData) * 1000);
+		d3d_state.instance_buffer->Map(0, nullptr, (void**)&d3d_state.instance_buffer_ptr);
+		d3d_state.instance_vbv.BufferLocation = d3d_state.instance_buffer->GetGPUVirtualAddress();
+		d3d_state.instance_vbv.StrideInBytes = sizeof(InstanceData);
+		d3d_state.instance_vbv.SizeInBytes = d3d_state.instance_vbv.StrideInBytes * 1000;
 	}
 
-	void InitPipelines()
+	static void InitPipelines()
 	{
 		d3d_state.default_raster_pipeline.root_sig = CreateRootSignature();
 		d3d_state.default_raster_pipeline.pipeline_state = CreatePipelineState(d3d_state.default_raster_pipeline.root_sig,
@@ -592,13 +613,9 @@ namespace Renderer
 		resource_desc.MipLevels = 1;
 		resource_desc.SampleDesc.Count = 1;
 		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-		d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&d3d_state.vertex_buffer));
-		d3d_state.vertex_buffer = CreateUploadBuffer(L"Triangle vertex buffer", sizeof(Vertex) * 6);
-		d3d_state.vertex_buffer->Map(0, nullptr, (void**)&d3d_state.vertex_buffer_ptr);
 	}
 
-	void InitDearImGui()
+	static void InitDearImGui()
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -623,7 +640,7 @@ namespace Renderer
 			{ d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size });
 	}
 
-	void ResizeBackBuffers()
+	static void ResizeBackBuffers()
 	{
 		// Release all back buffers
 		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
@@ -648,7 +665,7 @@ namespace Renderer
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 	}
 
-	void ResizeRenderResolution(uint32_t new_width, uint32_t new_height)
+	static void ResizeRenderResolution(uint32_t new_width, uint32_t new_height)
 	{
 		d3d_state.render_width = new_width;
 		d3d_state.render_height = new_height;
@@ -678,8 +695,13 @@ namespace Renderer
 		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, d3d_state.fence_value);
 	}
 
-	void BeginFrame()
+	void BeginFrame(const Mat4x4& view, const Mat4x4& projection)
 	{
+		d3d_state.scene_cb_ptr->view = view;
+		d3d_state.scene_cb_ptr->projection = projection;
+		d3d_state.scene_cb_ptr->view_projection = Mat4x4Mul(d3d_state.scene_cb_ptr->view, d3d_state.scene_cb_ptr->projection);
+		d3d_state.instance_buffer_ptr->transform = MakeMat4x4Identity();
+
 		// ----------------------------------------------------------------------------------
 		// Wait on the current back buffer until all commands on it have finished execution
 
@@ -758,11 +780,11 @@ namespace Renderer
 		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav };
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heaps);
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-		d3d_state.scene_cb_ptr->view_projection = DXMath::Mat4x4();
 		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
 		cmd_list->SetGraphicsRootDescriptorTable(1, { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + cbv_srv_uav_increment_size });
 
 		cmd_list->IASetVertexBuffers(0, 1, &d3d_state.mesh_resources[0].vbv);
+		cmd_list->IASetVertexBuffers(1, 1, &d3d_state.instance_vbv);
 		cmd_list->IASetIndexBuffer(&d3d_state.mesh_resources[0].ibv);
 		cmd_list->DrawIndexedInstanced(d3d_state.mesh_resources[0].ibv.SizeInBytes / 4, 1, 0, 0, 0);
 

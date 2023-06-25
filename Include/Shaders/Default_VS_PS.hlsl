@@ -1,5 +1,7 @@
 struct SceneData
 {
+    float4x4 view;
+    float4x4 projection;
     float4x4 view_projection;
 };
 
@@ -9,6 +11,7 @@ struct VertexLayout
 {
 	float3 pos : POSITION;
 	float2 uv : TEXCOORD;
+    float4x4 transform : TRANSFORM;
 };
 
 struct VSOut
@@ -21,7 +24,8 @@ VSOut VSMain(VertexLayout vertex)
 {
 	VSOut OUT;
 	
-    OUT.pos = mul(g_scene_cb.view_projection, float4(vertex.pos, 1));
+    OUT.pos = mul(float4(vertex.pos, 1), vertex.transform);
+    OUT.pos = mul(OUT.pos, g_scene_cb.view_projection);
 	OUT.uv = vertex.uv;
 
 	return OUT;

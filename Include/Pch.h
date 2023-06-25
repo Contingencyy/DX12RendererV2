@@ -9,6 +9,8 @@
 #include "Allocator.h"
 #include "DXMath.h"
 
+using namespace DXMath;
+
 #include <stdio.h>
 #include <cstdint>
 #include <assert.h>
