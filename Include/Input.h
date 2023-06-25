@@ -21,6 +21,6 @@ namespace Input
 	void OnKeyReleased(WPARAM win_key_code);
 
 	bool IsKeyPressed(KeyCode key_code);
-	float GetAxis2D(KeyCode axis_pos, KeyCode axis_neg);
+	float GetAxis1D(KeyCode axis_pos, KeyCode axis_neg);
 
 }

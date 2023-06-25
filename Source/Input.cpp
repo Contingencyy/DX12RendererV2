@@ -47,7 +47,7 @@ namespace Input
 		return key_states[key_code];
 	}
 
-	float GetAxis2D(KeyCode axis_pos, KeyCode axis_neg)
+	float GetAxis1D(KeyCode axis_pos, KeyCode axis_neg)
 	{
 		return (float)((int)key_states[axis_pos] + (-(int)key_states[axis_neg]));
 	}
