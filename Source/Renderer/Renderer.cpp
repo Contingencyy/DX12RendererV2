@@ -134,6 +134,7 @@ namespace Renderer
 		uint8_t* upload_buffer_ptr;
 		ID3D12Resource* test_texture;
 		MeshResource mesh_resources[64];
+		uint32_t num_mesh_resources;
 		
 		ID3D12Resource* instance_buffer;
 		InstanceData* instance_buffer_ptr;
@@ -700,7 +701,6 @@ namespace Renderer
 		d3d_state.scene_cb_ptr->view = view;
 		d3d_state.scene_cb_ptr->projection = projection;
 		d3d_state.scene_cb_ptr->view_projection = Mat4x4Mul(d3d_state.scene_cb_ptr->view, d3d_state.scene_cb_ptr->projection);
-		d3d_state.instance_buffer_ptr->transform = MakeMat4x4Identity();
 
 		// ----------------------------------------------------------------------------------
 		// Wait on the current back buffer until all commands on it have finished execution
@@ -782,11 +782,14 @@ namespace Renderer
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
 		cmd_list->SetGraphicsRootDescriptorTable(1, { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + cbv_srv_uav_increment_size });
-
-		cmd_list->IASetVertexBuffers(0, 1, &d3d_state.mesh_resources[0].vbv);
 		cmd_list->IASetVertexBuffers(1, 1, &d3d_state.instance_vbv);
-		cmd_list->IASetIndexBuffer(&d3d_state.mesh_resources[0].ibv);
-		cmd_list->DrawIndexedInstanced(d3d_state.mesh_resources[0].ibv.SizeInBytes / 4, 1, 0, 0, 0);
+		
+		for (uint32_t mesh = 0; mesh < d3d_state.num_mesh_resources; ++mesh)
+		{
+			cmd_list->IASetVertexBuffers(0, 1, &d3d_state.mesh_resources[mesh].vbv);
+			cmd_list->IASetIndexBuffer(&d3d_state.mesh_resources[mesh].ibv);
+			cmd_list->DrawIndexedInstanced(d3d_state.mesh_resources[mesh].ibv.SizeInBytes / 4, 1, 0, 0, 0);
+		}
 
 		// ----------------------------------------------------------------------------------
 		// Render Dear ImGui
@@ -934,18 +937,17 @@ namespace Renderer
 		uint64_t fence_value = ++d3d_state.fence_value;
 		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
 
-		static uint32_t num_mesh_resources = 0;
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].vertex_buffer = vertex_buffer;
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].vbv.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].vbv.SizeInBytes = vb_total_bytes;
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].vbv.StrideInBytes = sizeof(Vertex);
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].index_buffer = index_buffer;
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].ibv.BufferLocation = index_buffer->GetGPUVirtualAddress();
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].ibv.Format = DXGI_FORMAT_R32_UINT;
+		d3d_state.mesh_resources[d3d_state.num_mesh_resources].ibv.SizeInBytes = ib_total_bytes;
 
-		d3d_state.mesh_resources[num_mesh_resources].vertex_buffer = vertex_buffer;
-		d3d_state.mesh_resources[num_mesh_resources].vbv.BufferLocation = vertex_buffer->GetGPUVirtualAddress();
-		d3d_state.mesh_resources[num_mesh_resources].vbv.SizeInBytes = vb_total_bytes;
-		d3d_state.mesh_resources[num_mesh_resources].vbv.StrideInBytes = sizeof(Vertex);
-		d3d_state.mesh_resources[num_mesh_resources].index_buffer = index_buffer;
-		d3d_state.mesh_resources[num_mesh_resources].ibv.BufferLocation = index_buffer->GetGPUVirtualAddress();
-		d3d_state.mesh_resources[num_mesh_resources].ibv.Format = DXGI_FORMAT_R32_UINT;
-		d3d_state.mesh_resources[num_mesh_resources].ibv.SizeInBytes = ib_total_bytes;
-
-		num_mesh_resources++;
+		d3d_state.instance_buffer_ptr[d3d_state.num_mesh_resources].transform = Mat4x4Identity();
+		d3d_state.num_mesh_resources++;
 	}
 
 	void OnWindowResize(uint32_t new_width, uint32_t new_height)

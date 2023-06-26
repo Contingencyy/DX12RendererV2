@@ -4,6 +4,7 @@
 #include "Renderer/Renderer.h"
 #include "FileIO.h"
 #include "Scene.h"
+#include "Input.h"
 
 #include "imgui/imgui.h"
 
@@ -117,6 +118,15 @@ namespace Application
 
 	void Update(float dt)
 	{
+		/*if (Input::IsKeyPressed(Input::KeyCode_LeftMouse))
+		{
+			Window::SetMouseCapture(true);
+		}
+		else if (Input::IsKeyPressed(Input::KeyCode_RightMouse))
+		{
+			Window::SetMouseCapture(false);
+		}*/
+
 		Scene::Update(dt);
 	}
 

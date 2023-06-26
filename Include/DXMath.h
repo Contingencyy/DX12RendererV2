@@ -55,6 +55,23 @@ namespace DXMath
 		return Vec2(v.x * s, v.y * s);
 	}
 
+	static inline float Vec2Dot(const Vec2& v1, const Vec2& v2)
+	{
+		return v1.x * v2.x + v1.y * v2.y;
+	}
+
+	static inline float Vec2Length(const Vec2& v)
+	{
+		return Vec2Dot(v, v);
+	}
+
+	static inline Vec2 Vec2Normalize(const Vec2& v)
+	{
+		float length = Vec2Length(v);
+		float rcp_length = 1.0 / length;
+		return Vec2MulScalar(v, rcp_length);
+	}
+
 	// ----------------------------------------------------------------------------
 	// Vec3
 
@@ -106,6 +123,18 @@ namespace DXMath
 		return result;
 	}
 
+	static inline float Vec3Length(const Vec3& v)
+	{
+		return Vec3Dot(v, v);
+	}
+
+	static inline Vec3 Vec3Normalize(const Vec3& v)
+	{
+		float length = Vec3Length(v);
+		float rcp_length = 1.0 / length;
+		return Vec3MulScalar(v, rcp_length);
+	}
+
 	// ----------------------------------------------------------------------------
 	// Vec4
 
@@ -145,6 +174,40 @@ namespace DXMath
 	}
 
 	// ----------------------------------------------------------------------------
+	// Quat
+
+	struct Quat
+	{
+		Quat() = default;
+
+		union
+		{
+			float v[4] = {0};
+			struct
+			{
+				float x, y, z, w;
+				Vec3 xyz;
+				Vec4 xyzw;
+			};
+		};
+	};
+
+	static inline Quat EulerToQuat(const Vec3& euler)
+	{
+		Quat result;
+
+		Vec3 c = Vec3(cosf(euler.x * 0.5), cosf(euler.y * 0.5), cosf(euler.z * 0.5));
+		Vec3 s = Vec3(sinf(euler.x * 0.5), sinf(euler.y * 0.5), sinf(euler.z * 0.5));
+
+		result.w = c.x * c.y * c.z + s.x * s.y * s.z;
+		result.x = s.x * c.y * c.z - c.x * s.y * s.z;
+		result.y = c.x * s.y * c.z + s.x * c.y * s.z;
+		result.z = c.x * c.y * s.z - s.x * s.y * c.z;
+
+		return result;
+	}
+
+	// ----------------------------------------------------------------------------
 	// Mat4x4
 
 	struct Mat4x4
@@ -169,37 +232,92 @@ namespace DXMath
 		};
 	};
 
-	static Mat4x4 MakeMat4x4Identity()
+	static inline Mat4x4 Mat4x4FromQuat(const Quat& q)
+	{
+		Mat4x4 result;
+
+		result.v[0][3] = 0.0f;
+		result.v[1][3] = 0.0f;
+		result.v[2][3] = 0.0f;
+
+		result.v[3][0] = 0.0f;
+		result.v[3][1] = 0.0f;
+		result.v[3][2] = 0.0f;
+		result.v[3][3] = 1.0f;
+
+		float qx = 2.0f * q.x * q.x;
+		float qy = 2.0f * q.y * q.y;
+		float qz = 2.0f * q.z * q.z;
+		float qxqy = 2.0f * q.x * q.y;
+		float qxqz = 2.0f * q.x * q.z;
+		float qxqw = 2.0f * q.x * q.w;
+		float qyqz = 2.0f * q.y * q.z;
+		float qyqw = 2.0f * q.y * q.w;
+		float qzqw = 2.0f * q.z * q.w;
+
+		result.v[0][0] = 1.0f - qy - qz;
+		result.v[1][1] = 1.0f - qx - qz;
+		result.v[2][2] = 1.0f - qx - qy;
+
+		result.v[1][0] = qxqy + qzqw;
+		result.v[2][0] = qxqz - qyqw;
+
+		result.v[0][1] = qxqy - qzqw;
+		result.v[2][1] = qyqz + qxqw;
+
+		result.v[0][2] = qxqz + qyqw;
+		result.v[1][2] = qyqz - qxqw;
+
+		return result;
+	}
+
+	static inline Mat4x4 Mat4x4Identity()
 	{
 		Mat4x4 result;
 		result.r0.x = result.r1.y = result.r2.z = result.r3.w = 1.0;
 		return result;
 	}
 
-	static Mat4x4 MakeMat4x4FromTranslation(const Vec3& translation)
+	static inline Mat4x4 Mat4x4FromTranslation(const Vec3& translation)
 	{
-		Mat4x4 result = MakeMat4x4Identity();
+		Mat4x4 result = Mat4x4Identity();
 		result.r3.x = translation.x;
 		result.r3.y = translation.y;
 		result.r3.z = translation.z;
 		return result;
 	}
-	
-	static Mat4x4 MakeMat4x4Perspective(float fov, float aspect, float near, float far)
+
+	static inline Mat4x4 Mat4x4FromScale(const Vec3& scale)
 	{
-		float g = tanf(fov / 2);
-		float k = far / (far - near);
-		Mat4x4 result(
-			Vec4(g / aspect, 0, 0, 0),
-			Vec4(0,			 g, 0, 0),
-			Vec4(0,			 0, k, -near * k),
-			Vec4(0,			 0, -1, 0)
+		Mat4x4 result = Mat4x4(
+			scale.x, 0.0, 0.0, 0.0,
+			0.0, scale.y, 0.0, 0.0,
+			0.0, 0.0, scale.z, 0.0,
+			0.0, 0.0, 0.0, 1.0
 		);
+		return result;
+	}
+	
+	static inline Mat4x4 Mat4x4Perspective(float fov, float aspect, float near, float far)
+	{
+		float fov_sin = sinf(0.5 * fov);
+		float fov_cos = cosf(0.5 * fov);
+
+		float h = fov_cos / fov_sin;
+		float w = h / aspect;
+		float f = far / (far - near);
+
+		Mat4x4 result;
+		result.v[0][0] = w;
+		result.v[1][1] = h;
+		result.v[2][2] = f;
+		result.v[2][3] = 1.0;
+		result.v[3][2] = -f * near;
 
 		return result;
 	}
 
-	static Mat4x4 Mat4x4Mul(const Mat4x4& m1, const Mat4x4& m2)
+	static inline Mat4x4 Mat4x4Mul(const Mat4x4& m1, const Mat4x4& m2)
 	{
 		Mat4x4 result;
 		for (int col = 0; col < 4; ++col)
@@ -216,7 +334,7 @@ namespace DXMath
 		return result;
 	}
 
-	static Mat4x4 Mat4x4Inverse(const Mat4x4& m)
+	static inline Mat4x4 Mat4x4Inverse(const Mat4x4& m)
 	{
 		Vec3 a = Vec3(m.v[0][0], m.v[1][0], m.v[2][0]);
 		Vec3 b = Vec3(m.v[0][1], m.v[1][1], m.v[2][1]);
@@ -251,6 +369,17 @@ namespace DXMath
 			r2.x, r2.y, r2.z, -Vec3Dot(d, s),
 			r3.x, r3.y, r3.z, Vec3Dot(c, s)
 		);
+	}
+
+	static inline Mat4x4 Mat4x4FromTRS(const Vec3& translation, const Quat& rotation, const Vec3& scale)
+	{
+		Mat4x4 result = Mat4x4Identity();
+
+		result = Mat4x4Mul(result, Mat4x4FromScale(scale));
+		result = Mat4x4Mul(result, Mat4x4FromQuat(rotation));
+		result = Mat4x4Mul(result, Mat4x4FromTranslation(translation));
+
+		return result;
 	}
 
 }

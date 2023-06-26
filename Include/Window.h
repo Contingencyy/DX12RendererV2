@@ -13,6 +13,8 @@ namespace Window
 	void Create(const WindowProps& props);
 	void Destroy();
 
+	void SetMouseCapture(bool capture);
+
 	HWND GetHWnd();
 
 }

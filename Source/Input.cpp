@@ -1,13 +1,22 @@
 #include "Pch.h"
 #include "Input.h"
 
+#define LOWORD(l) ((WORD)(((DWORD_PTR)(l)) & 0xffff))
+#define HIWORD(l) ((WORD)((((DWORD_PTR)(l)) >> 16) & 0xffff))
+#define GET_X_LPARAM(lp) ((int)(short)LOWORD(lp))
+#define GET_Y_LPARAM(lp) ((int)(short)HIWORD(lp))
+
 namespace Input
 {
 
-	bool key_states[KeyCode_NumKeys];
+	static bool key_states[KeyCode_NumKeys];
+	struct mouse_position
+	{
+		int x, y;
+	} static mouse_pos_cur, mouse_pos_prev;
 
 	// TODO: Change this to a lookup/translation table
-	KeyCode WParamToKeyCode(WPARAM wparam)
+	static KeyCode WParamToKeyCode(WPARAM wparam)
 	{
 		switch (wparam)
 		{
@@ -50,6 +59,19 @@ namespace Input
 	float GetAxis1D(KeyCode axis_pos, KeyCode axis_neg)
 	{
 		return (float)((int)key_states[axis_pos] + (-(int)key_states[axis_neg]));
+	}
+
+	void OnMouseMoved(LPARAM win_lparam)
+	{
+		mouse_pos_prev = mouse_pos_cur;
+		mouse_pos_cur.x = GET_X_LPARAM(win_lparam);
+		mouse_pos_cur.y = GET_Y_LPARAM(win_lparam);
+	}
+
+	void GetMouseMoveRel(int* x, int* y)
+	{
+		*x = mouse_pos_cur.x - mouse_pos_prev.x;
+		*y = mouse_pos_cur.y - mouse_pos_prev.y;
 	}
 
 }

@@ -23,4 +23,8 @@ namespace Input
 	bool IsKeyPressed(KeyCode key_code);
 	float GetAxis1D(KeyCode axis_pos, KeyCode axis_neg);
 
+	void OnMouseMoved(LPARAM win_lparam);
+
+	void GetMouseMoveRel(int* x, int* y);
+
 }

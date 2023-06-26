@@ -13,6 +13,8 @@ namespace Window
 		HWND hWnd;
 		RECT window_rect;
 		RECT client_rect;
+
+		bool capture_mouse;
 	} static data;
 
 	LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -35,14 +37,31 @@ namespace Window
 			}
 		} break;
 
+		case WM_SYSKEYDOWN:
 		case WM_KEYDOWN:
+		case WM_LBUTTONDOWN:
+		case WM_RBUTTONDOWN:
 		{
 			Input::OnKeyPressed(wParam);
 		} break;
 
+		case WM_SYSKEYUP:
 		case WM_KEYUP:
 		{
 			Input::OnKeyReleased(wParam);
+		} break;
+		case WM_LBUTTONUP:
+		{
+			Input::OnKeyReleased(VK_LBUTTON);
+		} break;
+		case WM_RBUTTONUP:
+		{
+			Input::OnKeyReleased(VK_RBUTTON);
+		} break;
+
+		case WM_MOUSEMOVE:
+		{
+			Input::OnMouseMoved(lParam);
 		} break;
 
 		case WM_DESTROY:
@@ -103,7 +122,18 @@ namespace Window
 
 	void Destroy()
 	{
-		// This does not do anything yet
+	}
+
+	void SetMouseCapture(bool capture)
+	{
+		if (data.capture_mouse != capture)
+		{
+			data.capture_mouse = capture;
+
+			::GetWindowRect(data.hWnd, &data.window_rect);
+			ShowCursor(!capture);
+			ClipCursor(capture ? &data.window_rect : nullptr);
+		}
 	}
 
 	HWND GetHWnd()
