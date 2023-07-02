@@ -170,6 +170,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Source\Allocator.cpp" />
+    <ClCompile Include="Source\AssetManager.cpp" />
     <ClCompile Include="Source\FileIO.cpp" />
     <ClCompile Include="Source\Application.cpp" />
     <ClCompile Include="Source\Input.cpp" />
@@ -188,11 +189,14 @@
     <ClInclude Include="Extern\imgui\imgui_impl_win32.h" />
     <ClInclude Include="Include\Allocator.h" />
     <ClInclude Include="Include\Application.h" />
+    <ClInclude Include="Include\AssetManager.h" />
     <ClInclude Include="Include\FileIO.h" />
     <ClInclude Include="Include\DXMath.h" />
     <ClInclude Include="Include\Input.h" />
     <ClInclude Include="Include\Pch.h" />
+    <ClInclude Include="Include\Renderer\D3DState.h" />
     <ClInclude Include="Include\Renderer\Renderer.h" />
+    <ClInclude Include="Include\ResourceSlotmap.h" />
     <ClInclude Include="Include\Scene.h" />
     <ClInclude Include="Include\Window.h" />
   </ItemGroup>

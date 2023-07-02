@@ -1,4 +1,5 @@
 #pragma once
+#include "ResourceSlotmap.h"
 
 namespace Renderer
 {
@@ -12,7 +13,8 @@ namespace Renderer
 
 	enum TextureFormat
 	{
-		TextureFormat_RGBA8
+		TextureFormat_RGBA8,
+		TextureFormat_D32
 	};
 
 	struct UploadTextureParams
@@ -47,8 +49,10 @@ namespace Renderer
 	void EndFrame();
 	void RenderFrame();
 
-	void UploadTexture(const UploadTextureParams& params);
-	void UploadMesh(const UploadMeshParams& params);
+	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle);
+
+	ResourceHandle UploadTexture(const UploadTextureParams& params);
+	ResourceHandle UploadMesh(const UploadMeshParams& params);
 
 	void OnWindowResize(uint32_t new_width, uint32_t new_height);
 	void OnImGuiRender();

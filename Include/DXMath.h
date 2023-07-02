@@ -254,19 +254,19 @@ namespace DXMath
 		float qyqz = 2.0f * q.y * q.z;
 		float qyqw = 2.0f * q.y * q.w;
 		float qzqw = 2.0f * q.z * q.w;
-
+		
 		result.v[0][0] = 1.0f - qy - qz;
 		result.v[1][1] = 1.0f - qx - qz;
 		result.v[2][2] = 1.0f - qx - qy;
 
-		result.v[1][0] = qxqy + qzqw;
-		result.v[2][0] = qxqz - qyqw;
+		result.v[0][1] = qxqy + qzqw;
+		result.v[0][2] = qxqz - qyqw;
 
-		result.v[0][1] = qxqy - qzqw;
-		result.v[2][1] = qyqz + qxqw;
+		result.v[1][0] = qxqy - qzqw;
+		result.v[1][2] = qyqz + qxqw;
 
-		result.v[0][2] = qxqz + qyqw;
-		result.v[1][2] = qyqz - qxqw;
+		result.v[2][0] = qxqz + qyqw;
+		result.v[2][1] = qyqz - qxqw;
 
 		return result;
 	}

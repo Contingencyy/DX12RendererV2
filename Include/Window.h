@@ -14,6 +14,8 @@ namespace Window
 	void Destroy();
 
 	void SetMouseCapture(bool capture);
+	void ResetMousePosition();
+	void GetWindowCenter(uint32_t* x, uint32_t* y);
 
 	HWND GetHWnd();
 

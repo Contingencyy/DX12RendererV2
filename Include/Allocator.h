@@ -15,7 +15,7 @@ struct Allocator
 
 	void* Allocate(size_t num_bytes, size_t align);
 	template<typename T>
-	T* Allocate(size_t count = 0)
+	T* Allocate(size_t count = 1)
 	{
 		return (T*)Allocate(sizeof(T) * count, alignof(T));
 	}

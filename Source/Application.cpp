@@ -2,9 +2,9 @@
 #include "Application.h"
 #include "Window.h"
 #include "Renderer/Renderer.h"
-#include "FileIO.h"
 #include "Scene.h"
 #include "Input.h"
+#include "AssetManager.h"
 
 #include "imgui/imgui.h"
 
@@ -15,6 +15,10 @@ namespace Application
 	{
 		bool running = false;
 		bool should_close = false;
+
+		ResourceHandle texture;
+		Model model;
+		Model model2;
 	} static data;
 
 	void Init()
@@ -42,21 +46,9 @@ namespace Application
 		// ----------------------------------------------------------------------------------
 		// Load textures
 
-		FileIO::LoadImageResult texture = FileIO::LoadImage("Assets/Textures/kermit.png");
-		Renderer::UploadTextureParams texture_params = {};
-		texture_params.format = Renderer::TextureFormat_RGBA8;
-		texture_params.width = texture.width;
-		texture_params.height = texture.height;
-		texture_params.bytes = texture.bytes;
-		texture_params.name = L"Assets/Textures/kermit.png";
-		Renderer::UploadTexture(texture_params);
-		delete texture_params.bytes;
-
-		FileIO::LoadGLTFResult mesh = FileIO::LoadGLTF("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
-		for (uint32_t i = 0; i < mesh.num_meshes; ++i)
-		{
-			Renderer::UploadMesh(mesh.mesh_params[i]);
-		}
+		data.texture = AssetManager::LoadTexture("Assets/Textures/kermit.png");
+		//data.model = AssetManager::LoadModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
+		data.model2 = AssetManager::LoadModel("Assets/Models/Sponza/Sponza.gltf");
 		
 		data.running = true;
 	}
@@ -88,6 +80,7 @@ namespace Application
 			elapsed /= frequency.QuadPart;
 
 			float delta_time = (double)elapsed / 1000000;
+
 			PollEvents();
 			Update(delta_time);
 			Render();
@@ -114,19 +107,20 @@ namespace Application
 			::TranslateMessage(&msg);
 			::DispatchMessage(&msg);
 		}
-	}
 
-	void Update(float dt)
-	{
-		/*if (Input::IsKeyPressed(Input::KeyCode_LeftMouse))
+		if (Input::IsKeyPressed(Input::KeyCode_LeftMouse))
 		{
 			Window::SetMouseCapture(true);
 		}
 		else if (Input::IsKeyPressed(Input::KeyCode_RightMouse))
 		{
 			Window::SetMouseCapture(false);
-		}*/
+		}
+	}
 
+	void Update(float dt)
+	{
+		Input::UpdateMouseMove();
 		Scene::Update(dt);
 	}
 
@@ -134,6 +128,26 @@ namespace Application
 	{
 		// Begin a new frame
 		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
+
+		/*for (uint32_t node_idx = 0; node_idx < data.model.num_nodes; ++node_idx)
+		{
+			Model::Node* node = &data.model.nodes[node_idx];
+
+			for (uint32_t mesh_idx = 0; mesh_idx < node->num_meshes; ++mesh_idx)
+			{
+				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx]);
+			}
+		}*/
+
+		for (uint32_t node_idx = 0; node_idx < data.model2.num_nodes; ++node_idx)
+		{
+			Model::Node* node = &data.model2.nodes[node_idx];
+
+			for (uint32_t mesh_idx = 0; mesh_idx < node->num_meshes; ++mesh_idx)
+			{
+				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx]);
+			}
+		}
 
 		// Draw Dear ImGui menus
 		Renderer::OnImGuiRender();

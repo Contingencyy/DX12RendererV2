@@ -6,6 +6,8 @@ namespace Renderer
 	struct UploadMeshParams;
 }
 
+struct cgltf_data;
+
 namespace FileIO
 {
 
@@ -17,13 +19,6 @@ namespace FileIO
 	};
 
 	LoadImageResult LoadImage(const char* filepath);
-
-	struct LoadGLTFResult
-	{
-		uint32_t num_meshes;
-		Renderer::UploadMeshParams* mesh_params;
-	};
-
-	LoadGLTFResult LoadGLTF(const char* filepath);
+	cgltf_data* LoadGLTF(const char* filepath);
 
 }

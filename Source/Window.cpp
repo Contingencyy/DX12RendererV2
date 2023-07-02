@@ -59,11 +59,6 @@ namespace Window
 			Input::OnKeyReleased(VK_RBUTTON);
 		} break;
 
-		case WM_MOUSEMOVE:
-		{
-			Input::OnMouseMoved(lParam);
-		} break;
-
 		case WM_DESTROY:
 		{
 			::PostQuitMessage(0);
@@ -133,7 +128,28 @@ namespace Window
 			::GetWindowRect(data.hWnd, &data.window_rect);
 			ShowCursor(!capture);
 			ClipCursor(capture ? &data.window_rect : nullptr);
+
+			Input::SetMouseCapture(data.capture_mouse);
 		}
+	}
+
+	void ResetMousePosition()
+	{
+		uint32_t window_center_x, window_center_y;
+		GetWindowCenter(&window_center_x, &window_center_y);
+		SetCursorPos(window_center_x, window_center_y);
+	}
+
+	void GetWindowCenter(uint32_t* x, uint32_t* y)
+	{
+		RECT window_rect;
+		::GetWindowRect(Window::GetHWnd(), &window_rect);
+
+		uint32_t window_width = window_rect.right - window_rect.left;
+		uint32_t window_height = window_rect.bottom - window_rect.top;
+		
+		*x = window_rect.left + window_width / 2;
+		*y = window_rect.top + window_height / 2;
 	}
 
 	HWND GetHWnd()

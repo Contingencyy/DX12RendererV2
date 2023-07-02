@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Input.h"
+#include "Window.h"
 
 #define LOWORD(l) ((WORD)(((DWORD_PTR)(l)) & 0xffff))
 #define HIWORD(l) ((WORD)((((DWORD_PTR)(l)) >> 16) & 0xffff))
@@ -10,12 +11,9 @@ namespace Input
 {
 
 	static bool key_states[KeyCode_NumKeys];
-	struct mouse_position
-	{
-		int x, y;
-	} static mouse_pos_cur, mouse_pos_prev;
+	static bool mouse_captured;
+	static POINT mouse_pos_cur, mouse_pos_prev;
 
-	// TODO: Change this to a lookup/translation table
 	static KeyCode WParamToKeyCode(WPARAM wparam)
 	{
 		switch (wparam)
@@ -61,17 +59,42 @@ namespace Input
 		return (float)((int)key_states[axis_pos] + (-(int)key_states[axis_neg]));
 	}
 
-	void OnMouseMoved(LPARAM win_lparam)
+	void UpdateMouseMove()
 	{
 		mouse_pos_prev = mouse_pos_cur;
-		mouse_pos_cur.x = GET_X_LPARAM(win_lparam);
-		mouse_pos_cur.y = GET_Y_LPARAM(win_lparam);
+		GetCursorPos(&mouse_pos_cur);
+
+		if (mouse_captured)
+		{
+			Window::ResetMousePosition();
+		}
+	}
+
+	void SetMouseCapture(bool capture)
+	{
+		mouse_captured = capture;
 	}
 
 	void GetMouseMoveRel(int* x, int* y)
 	{
-		*x = mouse_pos_cur.x - mouse_pos_prev.x;
-		*y = mouse_pos_cur.y - mouse_pos_prev.y;
+		if (mouse_captured)
+		{
+			uint32_t window_center_x, window_center_y;
+			Window::GetWindowCenter(&window_center_x, &window_center_y);
+
+			*x = mouse_pos_cur.x - window_center_x;
+			*y = mouse_pos_cur.y - window_center_y;
+		}
+		else
+		{
+			*x = mouse_pos_cur.x - mouse_pos_prev.x;
+			*y = mouse_pos_cur.y - mouse_pos_prev.y;
+		}
+	}
+
+	bool IsMouseCaptured()
+	{
+		return mouse_captured;
 	}
 
 }
