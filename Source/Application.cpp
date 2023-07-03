@@ -47,7 +47,7 @@ namespace Application
 		// Load textures
 
 		data.texture = AssetManager::LoadTexture("Assets/Textures/kermit.png");
-		//data.model = AssetManager::LoadModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
+		data.model = AssetManager::LoadModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
 		data.model2 = AssetManager::LoadModel("Assets/Models/Sponza/Sponza.gltf");
 		
 		data.running = true;
@@ -129,15 +129,15 @@ namespace Application
 		// Begin a new frame
 		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
 
-		/*for (uint32_t node_idx = 0; node_idx < data.model.num_nodes; ++node_idx)
+		for (uint32_t node_idx = 0; node_idx < data.model.num_nodes; ++node_idx)
 		{
 			Model::Node* node = &data.model.nodes[node_idx];
 
 			for (uint32_t mesh_idx = 0; mesh_idx < node->num_meshes; ++mesh_idx)
 			{
-				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx]);
+				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx], Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(400.0)));
 			}
-		}*/
+		}
 
 		for (uint32_t node_idx = 0; node_idx < data.model2.num_nodes; ++node_idx)
 		{
@@ -145,7 +145,7 @@ namespace Application
 
 			for (uint32_t mesh_idx = 0; mesh_idx < node->num_meshes; ++mesh_idx)
 			{
-				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx]);
+				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx], Mat4x4Identity());
 			}
 		}
 

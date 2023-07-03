@@ -30,14 +30,14 @@ using namespace DXMath;
 
 #define DX_GPU_VALIDATION 0
 
-// Windows headers
-#include <d3d12.h>
+// DirectX, DXC
+#include "D3D12Agility/build/native/include/d3d12.h"
+//#include <d3d12.h>
 #include <dxgi1_6.h>
 #include <dxgidebug.h>
-
-// DXC
 #include "DXC/inc/dxcapi.h"
 
+// Windows
 #define NOMINMAX
 #define WINDOWS_LEAN_AND_MEAN
 #include <Windows.h>

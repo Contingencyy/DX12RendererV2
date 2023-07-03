@@ -50,6 +50,11 @@ if ((object)) \
 (object) = nullptr
 #endif
 
+// Specify the D3D12 agility SDK version and path
+// This will help the D3D12.dll loader pick the right D3D12Core.dll (either the system installed or provided agility)
+extern "C" { __declspec(dllexport) extern const UINT D3D12SDKVersion = 711; }
+extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = u8".\\D3D12\\"; }
+
 D3DState d3d_state;
 
 namespace Renderer
@@ -82,7 +87,6 @@ namespace Renderer
 	{
 		ResourceHandle mesh_handle;
 		ResourceHandle texture_handle;
-		InstanceData instance;
 	};
 
 	struct InternalData
@@ -338,7 +342,7 @@ namespace Renderer
 
 		ID3D12Resource* buffer;
 		DX_CHECK_HR(d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE,
-			&resource_desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)));
+			&resource_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&buffer)));
 		return buffer;
 	}
 
@@ -451,7 +455,7 @@ namespace Renderer
 		DX_CHECK_HR_ERR(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&dxgi_factory)), "Failed to create DXGI factory");
 
 		// Select the adapter with the most video memory, and make sure it supports our wanted d3d feature level
-		D3D_FEATURE_LEVEL d3d_min_feature_level = D3D_FEATURE_LEVEL_12_1;
+		D3D_FEATURE_LEVEL d3d_min_feature_level = D3D_FEATURE_LEVEL_12_2;
 		IDXGIAdapter1* dxgi_adapter;
 		size_t max_dedicated_video_memory = 0;
 		for (uint32_t adapter_idx = 0; dxgi_factory->EnumAdapters1(adapter_idx, &dxgi_adapter) != DXGI_ERROR_NOT_FOUND; ++adapter_idx)
@@ -801,7 +805,7 @@ namespace Renderer
 			cmd_list->SetGraphicsRootDescriptorTable(1, texture_resource->srv_gpu);
 			cmd_list->IASetVertexBuffers(0, 1, &mesh_resource->vbv);
 			cmd_list->IASetIndexBuffer(&mesh_resource->ibv);
-			cmd_list->DrawIndexedInstanced(mesh_resource->ibv.SizeInBytes / 4, 1, 0, 0, 0);
+			cmd_list->DrawIndexedInstanced(mesh_resource->ibv.SizeInBytes / 4, 1, 0, 0, mesh);
 		}
 
 		// ----------------------------------------------------------------------------------
@@ -848,14 +852,16 @@ namespace Renderer
 		d3d_state.frame_index++;
 	}
 
-	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle)
+	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle, const Mat4x4& transform)
 	{
-		data.render_mesh_data[data.num_render_meshes++] =
+		data.render_mesh_data[data.num_render_meshes] =
 		{
+			// TODO: Default mesh handle? (e.g. Cube)
 			mesh_handle,
-			DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture,
-			{ Mat4x4Identity() }
+			DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture
 		};
+		d3d_state.instance_buffer_ptr[data.num_render_meshes].transform = transform;
+		data.num_render_meshes++;
 	}
 
 	ResourceHandle UploadTexture(const UploadTextureParams& params)

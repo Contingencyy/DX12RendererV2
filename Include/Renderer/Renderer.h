@@ -49,7 +49,7 @@ namespace Renderer
 	void EndFrame();
 	void RenderFrame();
 
-	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle);
+	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle, const Mat4x4& transform);
 
 	ResourceHandle UploadTexture(const UploadTextureParams& params);
 	ResourceHandle UploadMesh(const UploadMeshParams& params);

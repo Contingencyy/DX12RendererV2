@@ -117,6 +117,12 @@
     <Link>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;Extern/DXC/lib/x64/dxcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
+xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.pdb" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
+xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLayers.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
+xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLayers.pdb" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -127,6 +133,12 @@
     <Link>
       <AdditionalDependencies>d3d12.lib;dxgi.lib;Extern/DXC/lib/x64/dxcompiler.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
+xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.pdb" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
+xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLayers.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
+xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLayers.pdb" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Extern\imgui\imgui.cpp">
@@ -211,6 +223,5 @@
     </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>
