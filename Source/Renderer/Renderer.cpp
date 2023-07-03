@@ -18,6 +18,9 @@ while (false)
 
 #define DX_CHECK_HR(hr) DX_CHECK_HR_ERR(hr, "")
 
+#define DX_SUCCESS_HR(hr) \
+if (SUCCEEDED(hr))
+
 #define DX_FAILED_HR(hr) \
 if (FAILED(hr)) \
 { \

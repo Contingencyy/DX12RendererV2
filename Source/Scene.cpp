@@ -35,9 +35,9 @@ namespace Scene
 			data.camera_rotation = Vec3(data.camera_pitch, data.camera_yaw, 0.0);
 
 			// Camera translation
-			data.camera_translation = Vec3Add(Vec3MulScalar(data.camera_transform.r0.xyz, dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_D, Input::KeyCode_A)), data.camera_translation);
-			data.camera_translation = Vec3Add(Vec3MulScalar(data.camera_transform.r1.xyz, dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_Space, Input::KeyCode_LCTRL)), data.camera_translation);
-			data.camera_translation = Vec3Add(Vec3MulScalar(data.camera_transform.r2.xyz, dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_W, Input::KeyCode_S)), data.camera_translation);
+			data.camera_translation = Vec3Add(Vec3MulScalar(RightVectorFromTransform(data.camera_transform), dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_D, Input::KeyCode_A)), data.camera_translation);
+			data.camera_translation = Vec3Add(Vec3MulScalar(UpVectorFromTransform(data.camera_transform), dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_Space, Input::KeyCode_LCTRL)), data.camera_translation);
+			data.camera_translation = Vec3Add(Vec3MulScalar(ForwardVectorFromTransform(data.camera_transform), dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_W, Input::KeyCode_S)), data.camera_translation);
 		}
 
 		// Make camera transform

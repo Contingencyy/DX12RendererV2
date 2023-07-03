@@ -382,4 +382,19 @@ namespace DXMath
 		return result;
 	}
 
+	static inline Vec3 RightVectorFromTransform(const Mat4x4& transform)
+	{
+		return Vec3Normalize(transform.r0.xyz);
+	}
+
+	static inline Vec3 UpVectorFromTransform(const Mat4x4& transform)
+	{
+		return Vec3Normalize(transform.r1.xyz);
+	}
+
+	static inline Vec3 ForwardVectorFromTransform(const Mat4x4& transform)
+	{
+		return Vec3Normalize(transform.r2.xyz);
+	}
+
 }

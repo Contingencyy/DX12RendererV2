@@ -128,6 +128,7 @@ namespace Window
 			::GetWindowRect(data.hWnd, &data.window_rect);
 			ShowCursor(!capture);
 			ClipCursor(capture ? &data.window_rect : nullptr);
+			ResetMousePosition();
 
 			Input::SetMouseCapture(data.capture_mouse);
 		}
