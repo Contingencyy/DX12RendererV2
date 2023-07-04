@@ -108,11 +108,14 @@ namespace Application
 			::DispatchMessage(&msg);
 		}
 
-		if (Input::IsKeyPressed(Input::KeyCode_LeftMouse))
+		if (!ImGui::GetIO().WantCaptureMouse)
 		{
-			Window::SetMouseCapture(true);
+			if (Input::IsKeyPressed(Input::KeyCode_LeftMouse))
+			{
+				Window::SetMouseCapture(true);
+			}
 		}
-		else if (Input::IsKeyPressed(Input::KeyCode_RightMouse))
+		if (Input::IsKeyPressed(Input::KeyCode_RightMouse))
 		{
 			Window::SetMouseCapture(false);
 		}
@@ -124,37 +127,47 @@ namespace Application
 		Scene::Update(dt);
 	}
 
+	static void RenderModelNode(const Model& model, const Model::Node& node, Mat4x4& current_transform)
+	{
+		for (uint32_t mesh_idx = 0; mesh_idx < node.num_meshes; ++mesh_idx)
+		{
+			Renderer::RenderMesh(node.mesh_handles[mesh_idx], node.texture_handles[mesh_idx], current_transform);
+		}
+
+		for (uint32_t child_idx = 0; child_idx < node.num_children; ++child_idx)
+		{
+			const Model::Node& child_node = model.nodes[node.children[child_idx]];
+			RenderModelNode(model, child_node, Mat4x4Mul(child_node.transform, current_transform));
+		}
+	}
+
+	static void RenderModel(const Model& model, Mat4x4& current_transform)
+	{
+		for (uint32_t root_node_idx = 0; root_node_idx < model.num_root_nodes; ++root_node_idx)
+		{
+			const Model::Node& root_node = model.nodes[model.root_nodes[root_node_idx]];
+			RenderModelNode(model, root_node, Mat4x4Mul(root_node.transform, current_transform));
+		}
+	}
+
 	void Render()
 	{
-		// Begin a new frame
 		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
 
-		for (uint32_t node_idx = 0; node_idx < data.model.num_nodes; ++node_idx)
-		{
-			Model::Node* node = &data.model.nodes[node_idx];
+		Mat4x4 model_transform = Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(100.0));
+		RenderModel(data.model, model_transform);
+		RenderModel(data.model2, model_transform);
 
-			for (uint32_t mesh_idx = 0; mesh_idx < node->num_meshes; ++mesh_idx)
-			{
-				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx], Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(400.0)));
-			}
-		}
-
-		for (uint32_t node_idx = 0; node_idx < data.model2.num_nodes; ++node_idx)
-		{
-			Model::Node* node = &data.model2.nodes[node_idx];
-
-			for (uint32_t mesh_idx = 0; mesh_idx < node->num_meshes; ++mesh_idx)
-			{
-				Renderer::RenderMesh(node->mesh_handles[mesh_idx], node->texture_handles[mesh_idx], Mat4x4Identity());
-			}
-		}
-
-		// Draw Dear ImGui menus
-		Renderer::OnImGuiRender();
-
-		// End the current frame and render it
-		Renderer::EndFrame();
+		// Render the current frame
 		Renderer::RenderFrame();
+
+		// Render ImGui
+		Renderer::BeginImGuiFrame();
+		Renderer::OnImGuiRender();
+		Renderer::RenderImGui();
+
+		// End the frame, swap buffers
+		Renderer::EndFrame();
 	}
 
 	bool IsRunning()

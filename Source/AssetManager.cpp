@@ -32,6 +32,47 @@ static size_t CGLTFPrimitiveIndex(const cgltf_mesh* mesh, const cgltf_primitive*
     return (size_t)(primitive - mesh->primitives);
 }
 
+static size_t CGLTFGetNodeIndex(const cgltf_data* data, const cgltf_node* node)
+{
+    return (size_t)(node - data->nodes);
+}
+
+static Mat4x4 CGLTFNodeGetTransform(const cgltf_node* node)
+{
+    if (node->has_matrix)
+    {
+        Mat4x4 transform;
+        memcpy(&transform.v, &node->matrix[0], sizeof(Mat4x4));
+        return transform;
+    }
+
+    Vec3 translation;
+    Quat rotation;
+    Vec3 scale(1.0);
+
+    if (node->has_translation)
+    {
+        translation.x = node->translation[0];
+        translation.y = node->translation[1];
+        translation.z = node->translation[2];
+    }
+    if (node->has_rotation)
+    {
+        rotation.x = node->rotation[0];
+        rotation.y = node->rotation[1];
+        rotation.z = node->rotation[2];
+        rotation.w = node->rotation[3];
+    }
+    if (node->has_scale)
+    {
+        scale.x = node->scale[0];
+        scale.y = node->scale[1];
+        scale.z = node->scale[2];
+    }
+    
+    return Mat4x4FromTRS(translation, rotation, scale);
+}
+
 static char* CreatePathFromUri(const char* filepath, const char* uri)
 {
     char* result = g_thread_alloc.Allocate<char>(strlen(filepath) + strlen(uri));
@@ -178,7 +219,15 @@ namespace AssetManager
             node->num_meshes = cgltf_node->mesh->primitives_count;
             node->mesh_handles = asset_mgr_alloc.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
             node->texture_handles = asset_mgr_alloc.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
-            
+            node->transform = CGLTFNodeGetTransform(cgltf_node);
+            node->num_children = cgltf_node->children_count;
+            node->children = asset_mgr_alloc.Allocate<size_t>(cgltf_node->children_count);
+
+            for (uint32_t child_idx = 0; child_idx < cgltf_node->children_count; ++child_idx)
+            {
+                node->children[child_idx] = CGLTFGetNodeIndex(data, cgltf_node->children[child_idx]);
+            }
+
             for (uint32_t prim_idx = 0; prim_idx < cgltf_node->mesh->primitives_count; ++prim_idx)
             {
                 cgltf_primitive* primitive = &cgltf_node->mesh->primitives[prim_idx];
@@ -194,6 +243,24 @@ namespace AssetManager
                 {
                     node->texture_handles[prim_idx] = texture_handles[CGLTFImageIndex(data, primitive->material->pbr_metallic_roughness.base_color_texture.texture->image)];
                 }
+            }
+
+            if (!cgltf_node->parent)
+            {
+                model.num_root_nodes++;
+            }
+        }
+
+        size_t root_node_cur = 0;
+        model.root_nodes = asset_mgr_alloc.Allocate<size_t>(model.num_root_nodes);
+
+        for (uint32_t node_idx = 0; node_idx < data->nodes_count; ++node_idx)
+        {
+            cgltf_node* cgltf_node = &data->nodes[node_idx];
+
+            if (!cgltf_node->parent)
+            {
+                model.root_nodes[root_node_cur++] = node_idx;
             }
         }
         

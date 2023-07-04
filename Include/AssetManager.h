@@ -8,17 +8,19 @@ struct Model
 		uint32_t num_meshes;
 		ResourceHandle* mesh_handles;
 		ResourceHandle* texture_handles;
-		//Mat4x4 transform;
-		const char* name;
+		Mat4x4 transform;
 
-		//size_t* children;
-		//uint32_t num_children;
+		uint32_t num_children;
+		size_t* children;
+
+		const char* name;
 	};
 
-	Node* nodes;
 	uint32_t num_nodes;
-	//size_t root_nodes;
-	//uint32_t num_root_nodes;
+	Node* nodes;
+	uint32_t num_root_nodes;
+	size_t* root_nodes;
+
 	const char* name;
 };
 

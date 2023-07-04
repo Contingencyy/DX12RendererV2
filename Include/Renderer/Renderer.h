@@ -57,6 +57,10 @@ namespace Renderer
 	void OnWindowResize(uint32_t new_width, uint32_t new_height);
 	void OnImGuiRender();
 
+	// ImGui
+	void BeginImGuiFrame();
+	void RenderImGui();
+
 	bool IsInitialized();
 
 }

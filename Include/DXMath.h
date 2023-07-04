@@ -182,12 +182,12 @@ namespace DXMath
 
 		union
 		{
-			float v[4] = {0};
+			float v[4] = { 0 };
+			Vec3 xyz;
+			Vec4 xyzw;
 			struct
 			{
 				float x, y, z, w;
-				Vec3 xyz;
-				Vec4 xyzw;
 			};
 		};
 	};

@@ -60,6 +60,8 @@ D3DState d3d_state;
 namespace Renderer
 {
 
+#define RENDER_MESH_MAX_INSTANCES 1000
+
 	static Allocator renderer_alloc;
 
 	enum ReservedDescriptor : uint32_t
@@ -97,7 +99,14 @@ namespace Renderer
 		ResourceHandle default_white_texture;
 
 		RenderMeshData* render_mesh_data;
-		size_t num_render_meshes;
+
+		struct FrameStatistics
+		{
+			size_t draw_call_count;
+			size_t mesh_count;
+			size_t total_vertex_count;
+			size_t total_triangle_count;
+		} stats;
 	} static data;
 
 	static uint32_t TextureFormatBPP(TextureFormat format)
@@ -407,6 +416,13 @@ namespace Renderer
 		return barrier;
 	}
 
+	static void ExecuteCommandList(ID3D12CommandQueue* cmd_queue, ID3D12GraphicsCommandList6* cmd_list)
+	{
+		cmd_list->Close();
+		ID3D12CommandList* const command_lists[] = { cmd_list };
+		cmd_queue->ExecuteCommandLists(1, command_lists);
+	}
+
 	static void CommandQueueWaitOnFence(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value)
 	{
 		cmd_queue->Signal(fence, fence_value);
@@ -532,9 +548,9 @@ namespace Renderer
 				&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
 			DX_CHECK_HR_ERR(d3d_state.device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-				IID_PPV_ARGS(&d3d_state.command_allocator[back_buffer_idx])), "Failed to create command allocator");
-			DX_CHECK_HR_ERR(d3d_state.device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3d_state.command_allocator[back_buffer_idx], nullptr,
-				IID_PPV_ARGS(&d3d_state.command_list[back_buffer_idx])), "Failed to create command list");
+				IID_PPV_ARGS(&d3d_state.command_allocators[back_buffer_idx])), "Failed to create command allocator");
+			DX_CHECK_HR_ERR(d3d_state.device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, d3d_state.command_allocators[back_buffer_idx], nullptr,
+				IID_PPV_ARGS(&d3d_state.command_lists[back_buffer_idx])), "Failed to create command list");
 		}
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.fence)), "Failed to create fence");
 
@@ -542,6 +558,7 @@ namespace Renderer
 		d3d_state.descriptor_heap_rtv = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
 		d3d_state.descriptor_heap_dsv = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
 		d3d_state.descriptor_heap_cbv_srv_uav = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+		d3d_state.cbv_srv_uav_current_index = ReservedDescriptor_Count;
 
 		// Create the DXC compiler state
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
@@ -557,11 +574,11 @@ namespace Renderer
 		d3d_state.upload_buffer->Map(0, nullptr, (void**)&d3d_state.upload_buffer_ptr);
 
 		// Create the instance buffer
-		d3d_state.instance_buffer = CreateUploadBuffer(L"Instance buffer", sizeof(InstanceData) * 1000);
+		d3d_state.instance_buffer = CreateUploadBuffer(L"Instance buffer", sizeof(InstanceData) * RENDER_MESH_MAX_INSTANCES);
 		d3d_state.instance_buffer->Map(0, nullptr, (void**)&d3d_state.instance_buffer_ptr);
 		d3d_state.instance_vbv.BufferLocation = d3d_state.instance_buffer->GetGPUVirtualAddress();
 		d3d_state.instance_vbv.StrideInBytes = sizeof(InstanceData);
-		d3d_state.instance_vbv.SizeInBytes = d3d_state.instance_vbv.StrideInBytes * 1000;
+		d3d_state.instance_vbv.SizeInBytes = d3d_state.instance_vbv.StrideInBytes * RENDER_MESH_MAX_INSTANCES;
 	}
 
 	static void InitPipelines()
@@ -724,20 +741,44 @@ namespace Renderer
 		// a command list, you need at least one command allocator and at least one command list
 		if (d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx] > 0)
 		{
-			d3d_state.command_allocator[d3d_state.current_back_buffer_idx]->Reset();
-			d3d_state.command_list[d3d_state.current_back_buffer_idx]->Reset(d3d_state.command_allocator[d3d_state.current_back_buffer_idx], nullptr);
+			d3d_state.command_allocators[d3d_state.current_back_buffer_idx]->Reset();
+			d3d_state.command_lists[d3d_state.current_back_buffer_idx]->Reset(d3d_state.command_allocators[d3d_state.current_back_buffer_idx], nullptr);
 		}
-
-		// ----------------------------------------------------------------------------------
-		// Begin a new frame for Dear ImGui
-
-		ImGui_ImplWin32_NewFrame();
-		ImGui_ImplDX12_NewFrame();
-		ImGui::NewFrame();
 	}
 
 	void EndFrame()
 	{
+		// ----------------------------------------------------------------------------------
+		// Transition the back buffer to the present state
+
+		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_lists[d3d_state.current_back_buffer_idx];
+		D3D12_RESOURCE_BARRIER present_barrier = TransitionBarrier(d3d_state.back_buffers[d3d_state.current_back_buffer_idx], D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		cmd_list->ResourceBarrier(1, &present_barrier);
+
+		// ----------------------------------------------------------------------------------
+		// Execute the command list for the current frame
+
+		ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
+
+		// ----------------------------------------------------------------------------------
+		// Present the back buffer on the swap chain
+
+		uint32_t sync_interval = d3d_state.vsync_enabled ? 1 : 0;
+		uint32_t present_flags = d3d_state.tearing_supported && !d3d_state.vsync_enabled ? DXGI_PRESENT_ALLOW_TEARING : 0;
+		DX_CHECK_HR(d3d_state.swapchain->Present(sync_interval, present_flags));
+
+		// ----------------------------------------------------------------------------------
+		// Signal the GPU with the fence value for the current frame, and set the current back buffer index to the next one
+
+		d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx] = ++d3d_state.fence_value;
+		d3d_state.swapchain_command_queue->Signal(d3d_state.fence, d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx]);
+		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
+
+		// ----------------------------------------------------------------------------------
+		// Increase the total frame index
+
+		d3d_state.frame_index++;
+		data.stats = { 0 };
 	}
 
 	void RenderFrame()
@@ -766,7 +807,7 @@ namespace Renderer
 		// ----------------------------------------------------------------------------------
 		// Transition the back buffer to the render target state, and clear it
 
-		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_list[d3d_state.current_back_buffer_idx];
+		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_lists[d3d_state.current_back_buffer_idx];
 		D3D12_RESOURCE_BARRIER render_target_barrier = TransitionBarrier(back_buffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		cmd_list->ResourceBarrier(1, &render_target_barrier);
 
@@ -796,7 +837,7 @@ namespace Renderer
 		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
 		cmd_list->IASetVertexBuffers(1, 1, &d3d_state.instance_vbv);
 		
-		for (size_t mesh = 0; mesh < data.num_render_meshes; ++mesh)
+		for (size_t mesh = 0; mesh < data.stats.mesh_count; ++mesh)
 		{
 			RenderMeshData* mesh_data = &data.render_mesh_data[mesh];
 			MeshResource* mesh_resource = data.mesh_slotmap->Find(mesh_data->mesh_handle);
@@ -806,69 +847,31 @@ namespace Renderer
 			cmd_list->IASetVertexBuffers(0, 1, &mesh_resource->vbv);
 			cmd_list->IASetIndexBuffer(&mesh_resource->ibv);
 			cmd_list->DrawIndexedInstanced(mesh_resource->ibv.SizeInBytes / 4, 1, 0, 0, mesh);
+
+			data.stats.draw_call_count++;
+			data.stats.total_vertex_count += mesh_resource->ibv.SizeInBytes / 4;
+			data.stats.total_triangle_count += mesh_resource->ibv.SizeInBytes / 4 / 3;
 		}
-
-		// ----------------------------------------------------------------------------------
-		// Render Dear ImGui
-
-		ImGui::Render();
-
-		cmd_list->OMSetRenderTargets(1, &d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart(), FALSE, nullptr);
-		cmd_list->SetDescriptorHeaps(1, &d3d_state.descriptor_heap_cbv_srv_uav);
-
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
-
-		// ----------------------------------------------------------------------------------
-		// Transition the back buffer to the present state
-
-		D3D12_RESOURCE_BARRIER present_barrier = TransitionBarrier(back_buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-		cmd_list->ResourceBarrier(1, &present_barrier);
-
-		// ----------------------------------------------------------------------------------
-		// Close the command list, and execute it on the command queue
-
-		cmd_list->Close();
-		ID3D12CommandList* const command_lists[] = { cmd_list };
-		d3d_state.swapchain_command_queue->ExecuteCommandLists(1, command_lists);
-
-		// ----------------------------------------------------------------------------------
-		// Present the back buffer on the swap chain
-
-		uint32_t sync_interval = d3d_state.vsync_enabled ? 1 : 0;
-		uint32_t present_flags = d3d_state.tearing_supported && !d3d_state.vsync_enabled ? DXGI_PRESENT_ALLOW_TEARING : 0;
-		DX_CHECK_HR(d3d_state.swapchain->Present(sync_interval, present_flags));
-
-		// ----------------------------------------------------------------------------------
-		// Signal the GPU with the fence value for the current frame, and set the current back buffer index to the next one
-		
-		d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx] = ++d3d_state.fence_value;
-		d3d_state.swapchain_command_queue->Signal(d3d_state.fence, d3d_state.back_buffer_fence_values[d3d_state.current_back_buffer_idx]);
-		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
-
-		// ----------------------------------------------------------------------------------
-		// Increase the total frame index
-
-		data.num_render_meshes = 0;
-		d3d_state.frame_index++;
 	}
 
 	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle, const Mat4x4& transform)
 	{
-		data.render_mesh_data[data.num_render_meshes] =
+		DX_ASSERT(data.stats.mesh_count < RENDER_MESH_MAX_INSTANCES);
+		data.render_mesh_data[data.stats.mesh_count] =
 		{
 			// TODO: Default mesh handle? (e.g. Cube)
 			mesh_handle,
 			DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture
 		};
-		d3d_state.instance_buffer_ptr[data.num_render_meshes].transform = transform;
-		data.num_render_meshes++;
+		d3d_state.instance_buffer_ptr[data.stats.mesh_count].transform = transform;
+		data.stats.mesh_count++;
 	}
 
 	ResourceHandle UploadTexture(const UploadTextureParams& params)
 	{
 		ID3D12Resource* resource = CreateTexture(params.name, params.format, params.width, params.height);
 
-		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_list[d3d_state.current_back_buffer_idx];
+		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_lists[d3d_state.current_back_buffer_idx];
 		D3D12_RESOURCE_BARRIER copy_dst_barrier = TransitionBarrier(resource,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_COPY_DEST);
@@ -914,10 +917,9 @@ namespace Renderer
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		cmd_list->ResourceBarrier(1, &pixel_src_barrier);
 		
-		cmd_list->Close();
-		ID3D12CommandList* const command_lists[] = { cmd_list };
-		d3d_state.swapchain_command_queue->ExecuteCommandLists(1, command_lists);
-		cmd_list->Reset(d3d_state.command_allocator[d3d_state.current_back_buffer_idx], nullptr);
+		// Execute the command list, wait on it, and reset it
+		ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
+		cmd_list->Reset(d3d_state.command_allocators[d3d_state.current_back_buffer_idx], nullptr);
 
 		uint64_t fence_value = ++d3d_state.fence_value;
 		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
@@ -939,9 +941,6 @@ namespace Renderer
 		texture_resource.srv_gpu = { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + d3d_state.cbv_srv_uav_current_index * cbv_srv_uav_increment_size };
 		d3d_state.device->CreateShaderResourceView(resource, &srv_desc, texture_resource.srv_cpu);
 
-		static uint32_t mesh_count = 0;
-		d3d_state.instance_buffer_ptr[mesh_count++].transform = Mat4x4Identity();
-
 		d3d_state.cbv_srv_uav_current_index++;
 		return data.texture_slotmap->Insert(texture_resource);
 	}
@@ -957,7 +956,7 @@ namespace Renderer
 		memcpy(d3d_state.upload_buffer_ptr, params.vertices, vb_total_bytes);
 		memcpy(d3d_state.upload_buffer_ptr + vb_total_bytes, params.indices, ib_total_bytes);
 
-		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_list[d3d_state.current_back_buffer_idx];
+		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_lists[d3d_state.current_back_buffer_idx];
 		cmd_list->CopyBufferRegion(vertex_buffer, 0, d3d_state.upload_buffer, 0, vb_total_bytes);
 		cmd_list->CopyBufferRegion(index_buffer, 0, d3d_state.upload_buffer, vb_total_bytes, ib_total_bytes);
 
@@ -968,10 +967,8 @@ namespace Renderer
 		};
 		cmd_list->ResourceBarrier(2, barriers);
 
-		cmd_list->Close();
-		ID3D12CommandList* const command_lists[] = { cmd_list };
-		d3d_state.swapchain_command_queue->ExecuteCommandLists(1, command_lists);
-		cmd_list->Reset(d3d_state.command_allocator[d3d_state.current_back_buffer_idx], nullptr);
+		ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
+		cmd_list->Reset(d3d_state.command_allocators[d3d_state.current_back_buffer_idx], nullptr);
 
 		uint64_t fence_value = ++d3d_state.fence_value;
 		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
@@ -1008,11 +1005,49 @@ namespace Renderer
 	{
 		ImGui::Begin("Renderer");
 
-		ImGui::Text("Back buffer count: %u", DX_BACK_BUFFER_COUNT);
-		ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
-		ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+		if (ImGui::CollapsingHeader("General"))
+		{
+			ImGui::Text("Back buffer count: %u", DX_BACK_BUFFER_COUNT);
+			ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
+		}
+
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+		if (ImGui::CollapsingHeader("Settings"))
+		{
+			ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
+			ImGui::Text("VSync: %s", d3d_state.vsync_enabled ? "true" : "false");
+			ImGui::Text("Tearing: %s", d3d_state.tearing_supported ? "true" : "false");
+		}
+
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+		if (ImGui::CollapsingHeader("Statistics"))
+		{
+			ImGui::Text("Draw calls: %u", data.stats.draw_call_count);
+			ImGui::Text("Total vertex count: %u", data.stats.total_vertex_count);
+			ImGui::Text("Total triangle count: %u", data.stats.total_triangle_count);
+		}
 
 		ImGui::End();
+	}
+
+	void BeginImGuiFrame()
+	{
+		ImGui_ImplWin32_NewFrame();
+		ImGui_ImplDX12_NewFrame();
+		ImGui::NewFrame();
+	}
+
+	void RenderImGui()
+	{
+		ID3D12GraphicsCommandList6* cmd_list = d3d_state.command_lists[d3d_state.current_back_buffer_idx];
+
+		ImGui::Render();
+
+		cmd_list->OMSetRenderTargets(1, &d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart(), FALSE, nullptr);
+		cmd_list->SetDescriptorHeaps(1, &d3d_state.descriptor_heap_cbv_srv_uav);
+
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
 	}
 
 	bool IsInitialized()

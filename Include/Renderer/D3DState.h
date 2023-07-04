@@ -48,8 +48,8 @@ struct D3DState
 
 	// Command queue, list and allocator
 	//ID3D12CommandQueue* command_queue_direct;
-	ID3D12GraphicsCommandList6* command_list[DX_BACK_BUFFER_COUNT];
-	ID3D12CommandAllocator* command_allocator[DX_BACK_BUFFER_COUNT];
+	ID3D12GraphicsCommandList6* command_lists[DX_BACK_BUFFER_COUNT];
+	ID3D12CommandAllocator* command_allocators[DX_BACK_BUFFER_COUNT];
 	uint64_t fence_value;
 	ID3D12Fence* fence;
 
