@@ -1,4 +1,5 @@
 #pragma once
+#include "Shaders/Shared.hlsl.h"
 
 // TODO: Should add HR error explanation to these macros as well
 #define DX_CHECK_HR_ERR(hr, error) \
@@ -50,16 +51,10 @@ struct RasterPipeline
 	ID3D12PipelineState* pipeline_state;
 };
 
-struct SceneData
-{
-	Mat4x4 view;
-	Mat4x4 projection;
-	Mat4x4 view_projection;
-};
-
 struct InstanceData
 {
-	Mat4x4 transform;
+	float4x4 transform;
+	uint base_color_index;
 };
 
 struct D3DState

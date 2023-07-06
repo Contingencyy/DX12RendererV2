@@ -454,7 +454,6 @@ namespace Renderer
 			MeshResource* mesh_resource = data.mesh_slotmap->Find(mesh_data->mesh_handle);
 			TextureResource* texture_resource = data.texture_slotmap->Find(mesh_data->texture_handle);
 			
-			cmd_list->SetGraphicsRootDescriptorTable(1, texture_resource->srv_gpu);
 			cmd_list->IASetVertexBuffers(0, 1, &mesh_resource->vbv);
 			cmd_list->IASetIndexBuffer(&mesh_resource->ibv);
 			cmd_list->DrawIndexedInstanced(mesh_resource->ibv.SizeInBytes / 4, 1, 0, 0, mesh);
@@ -510,7 +509,11 @@ namespace Renderer
 			mesh_handle,
 			DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture
 		};
+
+		TextureResource* texture_resource = data.texture_slotmap->Find(data.render_mesh_data[data.stats.mesh_count].texture_handle);
 		GetFrameContextCurrent()->instance_buffer_ptr[data.stats.mesh_count].transform = transform;
+		GetFrameContextCurrent()->instance_buffer_ptr[data.stats.mesh_count].base_color_index =
+			(texture_resource->srv_cpu.ptr - d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr) / d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		data.stats.mesh_count++;
 	}
 

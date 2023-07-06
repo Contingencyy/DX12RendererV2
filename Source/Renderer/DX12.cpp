@@ -75,9 +75,9 @@ namespace DX12
 		versioned_root_sig_desc.Desc_1_1.pParameters = root_params;
 		versioned_root_sig_desc.Desc_1_1.NumStaticSamplers = DX_ARRAY_SIZE(static_samplers);
 		versioned_root_sig_desc.Desc_1_1.pStaticSamplers = static_samplers;
-		// TODO: We want to use SM 6.6 ResourceHeap, so add this flag (there is also one for samplers if needed):
-		// D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
-		versioned_root_sig_desc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+		versioned_root_sig_desc.Desc_1_1.Flags =
+			D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
+			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 		ID3DBlob* serialized_root_sig, * error;
 		DX_CHECK_HR_ERR(D3D12SerializeVersionedRootSignature(&versioned_root_sig_desc, &serialized_root_sig, &error), "Failed to serialize versioned root signature");
@@ -129,6 +129,7 @@ namespace DX12
 			IDxcBlobEncoding* error;
 			result->GetErrorBuffer(&error);
 			// TODO: Logging
+			MessageBoxA(nullptr, (char*)error->GetBufferPointer(), "Failed", MB_OK);
 			DX_ASSERT(false && (char*)error->GetBufferPointer());
 
 			return nullptr;
@@ -165,10 +166,11 @@ namespace DX12
 			{ "TRANSFORM", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 			{ "TRANSFORM", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 			{ "TRANSFORM", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+			{ "BASE_COLOR_TEXTURE", 0, DXGI_FORMAT_R32_UINT, 1, 64, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 		};
 
-		IDxcBlob* vs_blob = CompileShader(vs_path, L"VSMain", L"vs_6_5");
-		IDxcBlob* ps_blob = CompileShader(ps_path, L"PSMain", L"ps_6_5");
+		IDxcBlob* vs_blob = CompileShader(vs_path, L"VSMain", L"vs_6_6");
+		IDxcBlob* ps_blob = CompileShader(ps_path, L"PSMain", L"ps_6_6");
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
 		pipeline_desc.InputLayout.NumElements = DX_ARRAY_SIZE(input_element_desc);
