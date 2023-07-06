@@ -35,24 +35,12 @@ namespace DX12
 
 	ID3D12RootSignature* CreateRootSignature()
 	{
-		D3D12_DESCRIPTOR_RANGE1 ranges[1] = {};
-		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		ranges[0].NumDescriptors = 1;
-		ranges[0].OffsetInDescriptorsFromTableStart = 0;
-		ranges[0].BaseShaderRegister = 0;
-		ranges[0].RegisterSpace = 0;
-		ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
-
-		D3D12_ROOT_PARAMETER1 root_params[2] = {};
+		D3D12_ROOT_PARAMETER1 root_params[1] = {};
 		root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		root_params[0].Descriptor.ShaderRegister = 0;
 		root_params[0].Descriptor.RegisterSpace = 0;
 		root_params[0].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
 		root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		root_params[1].DescriptorTable.NumDescriptorRanges = DX_ARRAY_SIZE(ranges);
-		root_params[1].DescriptorTable.pDescriptorRanges = ranges;
-		root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 		D3D12_STATIC_SAMPLER_DESC static_samplers[1] = {};
 		static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
