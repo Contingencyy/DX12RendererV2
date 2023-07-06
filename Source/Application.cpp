@@ -139,7 +139,8 @@ namespace Application
 		for (uint32_t child_idx = 0; child_idx < node.num_children; ++child_idx)
 		{
 			const Model::Node& child_node = model.nodes[node.children[child_idx]];
-			RenderModelNode(model, child_node, Mat4x4Mul(child_node.transform, current_transform));
+			Mat4x4 node_transform = Mat4x4Mul(child_node.transform, current_transform);
+			RenderModelNode(model, child_node, node_transform);
 		}
 	}
 
@@ -148,7 +149,8 @@ namespace Application
 		for (uint32_t root_node_idx = 0; root_node_idx < model.num_root_nodes; ++root_node_idx)
 		{
 			const Model::Node& root_node = model.nodes[model.root_nodes[root_node_idx]];
-			RenderModelNode(model, root_node, Mat4x4Mul(root_node.transform, current_transform));
+			Mat4x4 root_transform = Mat4x4Mul(root_node.transform, current_transform);
+			RenderModelNode(model, root_node, root_transform);
 		}
 	}
 

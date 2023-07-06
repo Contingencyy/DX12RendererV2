@@ -435,8 +435,9 @@ namespace Renderer
 		cmd_list->RSSetViewports(1, &viewport);
 		cmd_list->RSSetScissorRects(1, &scissor_rect);
 
-		cmd_list->OMSetRenderTargets(1, &d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart(),
-			FALSE, &d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart());
+		D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
+		cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
 
 		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.root_sig);
 		cmd_list->SetPipelineState(d3d_state.default_raster_pipeline.pipeline_state);
@@ -506,8 +507,8 @@ namespace Renderer
 		data.render_mesh_data[data.stats.mesh_count] =
 		{
 			// TODO: Default mesh handle? (e.g. Cube)
-			mesh_handle,
-			DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture
+			.mesh_handle = mesh_handle,
+			.texture_handle = DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture
 		};
 
 		TextureResource* texture_resource = data.texture_slotmap->Find(data.render_mesh_data[data.stats.mesh_count].texture_handle);
@@ -663,12 +664,14 @@ namespace Renderer
 
 		ImGui::Begin("Renderer");
 
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("General"))
 		{
 			ImGui::Text("Back buffer count: %u", DX_BACK_BUFFER_COUNT);
 			ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
 		}
 
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("Settings"))
 		{
 			ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
@@ -676,6 +679,7 @@ namespace Renderer
 			ImGui::Text("Tearing: %s", d3d_state.tearing_supported ? "true" : "false");
 		}
 
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("Statistics"))
 		{
 			ImGui::Text("Draw calls: %u", data.stats.draw_call_count);
@@ -683,6 +687,7 @@ namespace Renderer
 			ImGui::Text("Total triangle count: %u", data.stats.total_triangle_count);
 		}
 
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("GPU Memory"))
 		{
 			ImGui::Text("Local budget: %u MB", DX_TO_MB(local_mem_info.Budget));
@@ -712,7 +717,8 @@ namespace Renderer
 
 		ImGui::Render();
 
-		cmd_list->OMSetRenderTargets(1, &d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart(), FALSE, nullptr);
+		D3D12_CPU_DESCRIPTOR_HANDLE imgui_srv_handle = d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart();
+		cmd_list->OMSetRenderTargets(1, &imgui_srv_handle, FALSE, nullptr);
 		cmd_list->SetDescriptorHeaps(1, &d3d_state.descriptor_heap_cbv_srv_uav);
 
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);

@@ -113,7 +113,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
       <PreprocessorDefinitions>_DEBUG</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <WarningLevel>Level4</WarningLevel>
     </ClCompile>
     <Link>
@@ -131,7 +131,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
       <AdditionalIncludeDirectories>$(SolutionDir)Extern;$(SolutionDir)Include;</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <LanguageStandard>stdcpp14</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <WarningLevel>Level4</WarningLevel>
     </ClCompile>
     <Link>
