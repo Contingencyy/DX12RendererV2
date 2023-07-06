@@ -15,7 +15,7 @@ namespace Scene
 		Mat4x4 camera_transform;
 		Mat4x4 camera_view;
 		Mat4x4 camera_projection;
-		float camera_speed = 250.0;
+		float camera_speed = 25.0;
 	} static data;
 
 	void Update(float dt)

@@ -33,12 +33,23 @@ struct D3DState
 	// Swap chain
 	IDXGISwapChain4* swapchain;
 	ID3D12CommandQueue* swapchain_command_queue;
-	ID3D12Resource* back_buffers[DX_BACK_BUFFER_COUNT];
-	ID3D12Resource* depth_buffers[DX_BACK_BUFFER_COUNT];
+	ID3D12Resource* depth_buffer;
 	bool tearing_supported;
 	bool vsync_enabled;
 	uint32_t current_back_buffer_idx;
-	uint64_t back_buffer_fence_values[DX_BACK_BUFFER_COUNT];
+
+	struct FrameContext
+	{
+		ID3D12Resource* back_buffer;
+		uint64_t back_buffer_fence_value;
+
+		ID3D12CommandAllocator* command_allocator;
+		ID3D12GraphicsCommandList6* command_list;
+
+		ID3D12Resource* instance_buffer;
+		InstanceData* instance_buffer_ptr;
+		D3D12_VERTEX_BUFFER_VIEW instance_vbv;
+	} frame_ctx[DX_BACK_BUFFER_COUNT];
 
 	// Render resolution
 	// TODO: Should separate some of these into an API agnostic renderer state, since these do not depend on D3D, same goes for vsync
@@ -47,9 +58,6 @@ struct D3DState
 	uint64_t frame_index;
 
 	// Command queue, list and allocator
-	//ID3D12CommandQueue* command_queue_direct;
-	ID3D12GraphicsCommandList6* command_lists[DX_BACK_BUFFER_COUNT];
-	ID3D12CommandAllocator* command_allocators[DX_BACK_BUFFER_COUNT];
 	uint64_t fence_value;
 	ID3D12Fence* fence;
 
@@ -74,10 +82,6 @@ struct D3DState
 	// Upload buffer
 	ID3D12Resource* upload_buffer;
 	uint8_t* upload_buffer_ptr;
-
-	ID3D12Resource* instance_buffer;
-	InstanceData* instance_buffer_ptr;
-	D3D12_VERTEX_BUFFER_VIEW instance_vbv;
 
 	bool initialized;
 };

@@ -154,7 +154,7 @@ namespace Application
 	{
 		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
 
-		Mat4x4 model_transform = Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(100.0));
+		Mat4x4 model_transform = Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(10.0));
 		RenderModel(data.model, model_transform);
 		RenderModel(data.model2, model_transform);
 
