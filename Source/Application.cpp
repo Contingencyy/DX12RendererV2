@@ -13,6 +13,11 @@ namespace Application
 
 	struct InternalData
 	{
+		LARGE_INTEGER current_ticks, last_ticks;
+		LARGE_INTEGER frequency;
+		int64_t elapsed = 0;
+		float delta_time = 0.0;
+
 		bool running = false;
 		bool should_close = false;
 
@@ -47,7 +52,8 @@ namespace Application
 		// Load textures
 
 		data.texture = AssetManager::LoadTexture("Assets/Textures/kermit.png");
-		data.model = AssetManager::LoadModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
+		//data.model = AssetManager::LoadModel("Assets/Models/SponzaPBR/NewSponza_Main_glTF_002.gltf");
+		//data.model = AssetManager::LoadModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
 		data.model2 = AssetManager::LoadModel("Assets/Models/Sponza/Sponza.gltf");
 		
 		data.running = true;
@@ -64,28 +70,24 @@ namespace Application
 
 	void Run()
 	{
-		LARGE_INTEGER current_ticks, last_ticks;
-		LARGE_INTEGER frequency;
-		QueryPerformanceFrequency(&frequency);
-		QueryPerformanceCounter(&last_ticks);
-
-		int64_t elapsed = 0;
+		QueryPerformanceFrequency(&data.frequency);
+		QueryPerformanceCounter(&data.last_ticks);
 
 		while (!data.should_close && data.running)
 		{
-			QueryPerformanceCounter(&current_ticks);
+			QueryPerformanceCounter(&data.current_ticks);
 
-			elapsed = current_ticks.QuadPart - last_ticks.QuadPart;
-			elapsed *= 1000000;
-			elapsed /= frequency.QuadPart;
+			data.elapsed = data.current_ticks.QuadPart - data.last_ticks.QuadPart;
+			data.elapsed *= 1000000;
+			data.elapsed /= data.frequency.QuadPart;
 
-			float delta_time = (double)elapsed / 1000000;
+			data.delta_time = (double)data.elapsed / 1000000;
 
 			PollEvents();
-			Update(delta_time);
+			Update(data.delta_time);
 			Render();
 
-			last_ticks = current_ticks;
+			data.last_ticks = data.current_ticks;
 
 			// We reset and decommit the thread local allocator every frame
 			g_thread_alloc.Reset();
@@ -155,7 +157,7 @@ namespace Application
 		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
 
 		Mat4x4 model_transform = Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(10.0));
-		RenderModel(data.model, model_transform);
+		//RenderModel(data.model, model_transform);
 		RenderModel(data.model2, model_transform);
 
 		// Render the current frame
@@ -163,11 +165,22 @@ namespace Application
 
 		// Render ImGui
 		Renderer::BeginImGuiFrame();
+		Application::OnImGuiRender();
 		Renderer::OnImGuiRender();
 		Renderer::RenderImGui();
 
 		// End the frame, swap buffers
 		Renderer::EndFrame();
+	}
+
+	void OnImGuiRender()
+	{
+		ImGui::Begin("General");
+		
+		ImGui::Text("Delta time: %.3f ms", data.delta_time * 1000.0);
+		ImGui::Text("FPS: %u", (uint32_t)(1.0 / data.delta_time));
+
+		ImGui::End();
 	}
 
 	bool IsRunning()

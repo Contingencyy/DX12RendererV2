@@ -857,7 +857,7 @@ namespace Renderer
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
 		cmd_list->IASetVertexBuffers(1, 1, &frame_ctx->instance_vbv);
-		
+
 		for (size_t mesh = 0; mesh < data.stats.mesh_count; ++mesh)
 		{
 			RenderMeshData* mesh_data = &data.render_mesh_data[mesh];

@@ -22,6 +22,11 @@ namespace FileIO
         return result;
     }
 
+    void FreeImage(const LoadImageResult& result)
+    {
+        stbi_image_free(result.bytes);
+    }
+
     cgltf_data* LoadGLTF(const char* filepath)
     {
         // -------------------------------------------------------------------------------

@@ -90,18 +90,18 @@ namespace AssetManager
 
 	ResourceHandle LoadTexture(const char* filepath)
 	{
-		FileIO::LoadImageResult texture = FileIO::LoadImage(filepath);
+		FileIO::LoadImageResult image = FileIO::LoadImage(filepath);
 
 		Renderer::UploadTextureParams texture_params = {};
 		texture_params.format = Renderer::TextureFormat_RGBA8;
-		texture_params.width = texture.width;
-		texture_params.height = texture.height;
-		texture_params.bytes = texture.bytes;
+		texture_params.width = image.width;
+		texture_params.height = image.height;
+		texture_params.bytes = image.bytes;
 		// TODO: char to wchar conversion for texture name
 		texture_params.name = L""; //CharToWchar(filepath);
 		
 		ResourceHandle texture_handle = Renderer::UploadTexture(texture_params);
-		delete texture_params.bytes;
+        FileIO::FreeImage(image);
 
 		return texture_handle;
 	}
@@ -216,10 +216,7 @@ namespace AssetManager
         {
             cgltf_node* cgltf_node = &data->nodes[node_idx];
             Model::Node* node = &model.nodes[node_idx];
-            node->num_meshes = cgltf_node->mesh->primitives_count;
-            node->mesh_handles = asset_mgr_alloc.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
-            node->texture_handles = asset_mgr_alloc.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
-            node->transform = CGLTFNodeGetTransform(cgltf_node);
+            node->transform = cgltf_node->mesh ? CGLTFNodeGetTransform(cgltf_node) : Mat4x4Identity();
             node->num_children = cgltf_node->children_count;
             node->children = asset_mgr_alloc.Allocate<size_t>(cgltf_node->children_count);
 
@@ -228,20 +225,27 @@ namespace AssetManager
                 node->children[child_idx] = CGLTFGetNodeIndex(data, cgltf_node->children[child_idx]);
             }
 
-            for (uint32_t prim_idx = 0; prim_idx < cgltf_node->mesh->primitives_count; ++prim_idx)
+            if (cgltf_node->mesh)
             {
-                cgltf_primitive* primitive = &cgltf_node->mesh->primitives[prim_idx];
+                node->num_meshes = cgltf_node->mesh->primitives_count;
+                node->mesh_handles = asset_mgr_alloc.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
+                node->texture_handles = asset_mgr_alloc.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
 
-                node->name = cgltf_node->name;
-                
-                size_t mesh_index = CGLTFMeshIndex(data, cgltf_node->mesh) + CGLTFPrimitiveIndex(cgltf_node->mesh, primitive);
-                node->mesh_handles[prim_idx] = mesh_handles[mesh_index];
-
-                // Note: Only set the texture handle if the base color texture is actually valid
-                // Note: The renderer will fall back to default textures if texture handles are invalid
-                if (primitive->material->pbr_metallic_roughness.base_color_texture.texture)
+                for (uint32_t prim_idx = 0; prim_idx < cgltf_node->mesh->primitives_count; ++prim_idx)
                 {
-                    node->texture_handles[prim_idx] = texture_handles[CGLTFImageIndex(data, primitive->material->pbr_metallic_roughness.base_color_texture.texture->image)];
+                    cgltf_primitive* primitive = &cgltf_node->mesh->primitives[prim_idx];
+
+                    node->name = cgltf_node->name;
+
+                    size_t mesh_index = CGLTFMeshIndex(data, cgltf_node->mesh) + CGLTFPrimitiveIndex(cgltf_node->mesh, primitive);
+                    node->mesh_handles[prim_idx] = mesh_handles[mesh_index];
+
+                    // Note: Only set the texture handle if the base color texture is actually valid
+                    // Note: The renderer will fall back to default textures if texture handles are invalid
+                    if (primitive->material->pbr_metallic_roughness.base_color_texture.texture)
+                    {
+                        node->texture_handles[prim_idx] = texture_handles[CGLTFImageIndex(data, primitive->material->pbr_metallic_roughness.base_color_texture.texture->image)];
+                    }
                 }
             }
 
