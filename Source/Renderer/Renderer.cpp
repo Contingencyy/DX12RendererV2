@@ -1,54 +1,11 @@
 #include "Pch.h"
 #include "Renderer/Renderer.h"
 #include "Renderer/D3DState.h"
+#include "Renderer/DX12.h"
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx12.h"
-
-// TODO: Should add HR error explanation to these macros as well
-#define DX_CHECK_HR_ERR(hr, error) \
-do { \
-	if (FAILED(hr)) \
-	{ \
-		DX_ASSERT(false && (error)); \
-	} \
-} \
-while (false)
-
-#define DX_CHECK_HR(hr) DX_CHECK_HR_ERR(hr, "")
-
-#define DX_SUCCESS_HR(hr) \
-if (SUCCEEDED(hr))
-
-#define DX_FAILED_HR(hr) \
-if (FAILED(hr)) \
-{ \
-	DX_ASSERT(false); \
-} \
-else
-
-#if 0
-#define DX_RELEASE_OBJECT(object) \
-if ((object)) \
-{ \
-	ULONG ref_count = (object)->Release(); \
-	DX_ASSERT(ref_count == 0); \
-} \
-(object) = nullptr
-#else
-#define DX_RELEASE_OBJECT(object) \
-if ((object)) \
-{ \
-	ULONG ref_count = (object)->Release(); \
-	while (ref_count > 0) \
-	{ \
-/* Add a log warning here if it has to release more than once */ \
-		ref_count = (object)->Release(); \
-	} \
-} \
-(object) = nullptr
-#endif
 
 // Specify the D3D12 agility SDK version and path
 // This will help the D3D12.dll loader pick the right D3D12Core.dll (either the system installed or provided agility)
@@ -60,7 +17,7 @@ D3DState d3d_state;
 namespace Renderer
 {
 
-#define RENDER_MESH_MAX_INSTANCES 1000
+#define MAX_RENDER_MESHES 1000
 
 	static Allocator renderer_alloc;
 
@@ -126,321 +83,6 @@ namespace Renderer
 			return DXGI_FORMAT_R8G8B8A8_UNORM;
 		case TextureFormat_D32:
 			return DXGI_FORMAT_D32_FLOAT;
-		}
-	}
-
-	static ID3D12CommandQueue* CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type, D3D12_COMMAND_QUEUE_PRIORITY priority)
-	{
-		D3D12_COMMAND_QUEUE_DESC command_queue_desc = {};
-		command_queue_desc.Type = type;
-		command_queue_desc.Priority = priority;
-		command_queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-		command_queue_desc.NodeMask = 0;
-
-		ID3D12CommandQueue* command_queue;
-		DX_CHECK_HR(d3d_state.device->CreateCommandQueue(&command_queue_desc, IID_PPV_ARGS(&command_queue)));
-
-		return command_queue;
-	}
-
-	static ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors, D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE)
-	{
-		D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc = {};
-		descriptor_heap_desc.Type = type;
-		descriptor_heap_desc.NumDescriptors = num_descriptors;
-		descriptor_heap_desc.Flags = flags;
-		descriptor_heap_desc.NodeMask = 0;
-
-		ID3D12DescriptorHeap* descriptor_heap;
-		d3d_state.device->CreateDescriptorHeap(&descriptor_heap_desc, IID_PPV_ARGS(&descriptor_heap));
-
-		return descriptor_heap;
-	}
-
-	static ID3D12RootSignature* CreateRootSignature()
-	{
-		D3D12_DESCRIPTOR_RANGE1 ranges[1] = {};
-		ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		ranges[0].NumDescriptors = 1;
-		ranges[0].OffsetInDescriptorsFromTableStart = 0;
-		ranges[0].BaseShaderRegister = 0;
-		ranges[0].RegisterSpace = 0;
-		ranges[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
-
-		D3D12_ROOT_PARAMETER1 root_params[2] = {};
-		root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		root_params[0].Descriptor.ShaderRegister = 0;
-		root_params[0].Descriptor.RegisterSpace = 0;
-		root_params[0].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
-		root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		root_params[1].DescriptorTable.NumDescriptorRanges = DX_ARRAY_SIZE(ranges);
-		root_params[1].DescriptorTable.pDescriptorRanges = ranges;
-		root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-		D3D12_STATIC_SAMPLER_DESC static_samplers[1] = {};
-		static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
-		static_samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		static_samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		static_samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		static_samplers[0].MipLODBias = 0;
-		static_samplers[0].MaxAnisotropy = 0;
-		static_samplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-		static_samplers[0].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-		static_samplers[0].MinLOD = 0.0f;
-		static_samplers[0].MaxLOD = FLT_MAX;
-		static_samplers[0].ShaderRegister = 0;
-		static_samplers[0].RegisterSpace = 0;
-		static_samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
-		D3D12_VERSIONED_ROOT_SIGNATURE_DESC versioned_root_sig_desc = {};
-		versioned_root_sig_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-		versioned_root_sig_desc.Desc_1_1.NumParameters = DX_ARRAY_SIZE(root_params);
-		versioned_root_sig_desc.Desc_1_1.pParameters = root_params;
-		versioned_root_sig_desc.Desc_1_1.NumStaticSamplers = DX_ARRAY_SIZE(static_samplers);
-		versioned_root_sig_desc.Desc_1_1.pStaticSamplers = static_samplers;
-		// TODO: We want to use SM 6.6 ResourceHeap, so add this flag (there is also one for samplers if needed):
-		// D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
-		versioned_root_sig_desc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-		ID3DBlob* serialized_root_sig, *error;
-		DX_CHECK_HR_ERR(D3D12SerializeVersionedRootSignature(&versioned_root_sig_desc, &serialized_root_sig, &error), "Failed to serialize versioned root signature");
-		if (error)
-		{
-			DX_ASSERT(false && (char*)error->GetBufferPointer());
-		}
-		DX_RELEASE_OBJECT(error);
-
-		ID3D12RootSignature* root_sig;
-		DX_CHECK_HR_ERR(d3d_state.device->CreateRootSignature(0, serialized_root_sig->GetBufferPointer(),
-			serialized_root_sig->GetBufferSize(), IID_PPV_ARGS(&root_sig)), "Failed to create root signature");
-
-		DX_RELEASE_OBJECT(serialized_root_sig);
-
-		return root_sig;
-	}
-
-	static IDxcBlob* CompileShader(const wchar_t* filepath, const wchar_t* entry_point, const wchar_t* target_profile)
-	{
-		// TODO: Use shader reflection to figure out the bindings/root signature?
-		HRESULT hr;
-		uint32_t codepage = 0;
-		IDxcBlobEncoding* shader_text = nullptr;
-
-		DX_CHECK_HR_ERR(d3d_state.dxc_utils->LoadFile(filepath, &codepage, &shader_text), "Failed to load shader from file");
-
-		const wchar_t* compile_args[] =
-		{
-			DXC_ARG_WARNINGS_ARE_ERRORS,
-			DXC_ARG_OPTIMIZATION_LEVEL3,
-			DXC_ARG_PACK_MATRIX_ROW_MAJOR,
-#ifdef _DEBUG
-			DXC_ARG_DEBUG,
-			DXC_ARG_SKIP_OPTIMIZATIONS
-#endif
-		};
-
-		IDxcOperationResult* result;
-		DX_CHECK_HR_ERR(d3d_state.dxc_compiler->Compile(
-			shader_text, filepath, entry_point, target_profile,
-			compile_args, DX_ARRAY_SIZE(compile_args), nullptr,
-			0, d3d_state.dxc_include_handler, &result
-		), "Failed to compile shader");
-
-		result->GetStatus(&hr);
-		if (FAILED(hr))
-		{
-			IDxcBlobEncoding* error;
-			result->GetErrorBuffer(&error);
-			// TODO: Logging
-			DX_ASSERT(false && (char*)error->GetBufferPointer());
-
-			return nullptr;
-		}
-
-		IDxcBlob* blob;
-		result->GetResult(&blob);
-
-		DX_RELEASE_OBJECT(shader_text);
-		DX_RELEASE_OBJECT(result);
-
-		return blob;
-	}
-
-	static ID3D12PipelineState* CreatePipelineState(ID3D12RootSignature* root_sig, const wchar_t* vs_path, const wchar_t* ps_path)
-	{
-		D3D12_RENDER_TARGET_BLEND_DESC rt_blend_desc = {};
-		rt_blend_desc.BlendEnable = TRUE;
-		rt_blend_desc.LogicOpEnable = FALSE;
-		rt_blend_desc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-		rt_blend_desc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-		rt_blend_desc.BlendOp = D3D12_BLEND_OP_ADD;
-		rt_blend_desc.SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-		rt_blend_desc.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-		rt_blend_desc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-		rt_blend_desc.LogicOp = D3D12_LOGIC_OP_NOOP;
-		rt_blend_desc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-
-		D3D12_INPUT_ELEMENT_DESC input_element_desc[] =
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TRANSFORM", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
-			{ "TRANSFORM", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
-			{ "TRANSFORM", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
-			{ "TRANSFORM", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
-		};
-
-		IDxcBlob* vs_blob = CompileShader(vs_path, L"VSMain", L"vs_6_5");
-		IDxcBlob* ps_blob = CompileShader(ps_path, L"PSMain", L"ps_6_5");
-
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline_desc = {};
-		pipeline_desc.InputLayout.NumElements = DX_ARRAY_SIZE(input_element_desc);
-		pipeline_desc.InputLayout.pInputElementDescs = input_element_desc;
-		pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		pipeline_desc.VS.BytecodeLength = vs_blob->GetBufferSize();
-		pipeline_desc.VS.pShaderBytecode = vs_blob->GetBufferPointer();
-		pipeline_desc.PS.BytecodeLength = ps_blob->GetBufferSize();
-		pipeline_desc.PS.pShaderBytecode = ps_blob->GetBufferPointer();
-		pipeline_desc.NumRenderTargets = 1;
-		pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		pipeline_desc.DepthStencilState.DepthEnable = TRUE;
-		pipeline_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-		pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-		pipeline_desc.DepthStencilState.StencilEnable = FALSE;
-		pipeline_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-		pipeline_desc.BlendState.AlphaToCoverageEnable = FALSE;
-		pipeline_desc.BlendState.IndependentBlendEnable = TRUE;
-		pipeline_desc.BlendState.RenderTarget[0] = rt_blend_desc;
-		pipeline_desc.SampleDesc.Count = 1;
-		pipeline_desc.SampleDesc.Quality = 0;
-		pipeline_desc.SampleMask = UINT32_MAX;
-		pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-		pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-		pipeline_desc.NodeMask = 0;
-		pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-		pipeline_desc.pRootSignature = root_sig;
-
-		// TODO: Should be able to specify via parameters if this should be a graphics or compute pipeline state
-		ID3D12PipelineState* pipeline_state;
-		DX_CHECK_HR_ERR(d3d_state.device->CreateGraphicsPipelineState(&pipeline_desc,
-			IID_PPV_ARGS(&pipeline_state)), "Failed to create pipeline state");
-
-		DX_RELEASE_OBJECT(vs_blob);
-		DX_RELEASE_OBJECT(ps_blob);
-
-		return pipeline_state;
-	}
-
-	static ID3D12Resource* CreateBuffer(const wchar_t* name, uint64_t size_in_bytes)
-	{
-		D3D12_HEAP_PROPERTIES heap_props = {};
-		heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
-
-		D3D12_RESOURCE_DESC resource_desc = {};
-		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		resource_desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
-		resource_desc.Width = size_in_bytes;
-		resource_desc.Height = 1;
-		resource_desc.DepthOrArraySize = 1;
-		resource_desc.MipLevels = 1;
-		resource_desc.SampleDesc.Count = 1;
-		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-		ID3D12Resource* buffer;
-		DX_CHECK_HR(d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE,
-			&resource_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&buffer)));
-		buffer->SetName(name);
-
-		return buffer;
-	}
-
-	static ID3D12Resource* CreateUploadBuffer(const wchar_t* name, uint64_t size_in_bytes)
-	{
-		D3D12_HEAP_PROPERTIES heap_props = {};
-		heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
-
-		D3D12_RESOURCE_DESC resource_desc = {};
-		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		resource_desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
-		resource_desc.Width = size_in_bytes;
-		resource_desc.Height = 1;
-		resource_desc.DepthOrArraySize = 1;
-		resource_desc.MipLevels = 1;
-		resource_desc.SampleDesc.Count = 1;
-		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-		ID3D12Resource* buffer;
-		DX_CHECK_HR(d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE,
-			&resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)));
-		buffer->SetName(name);
-
-		return buffer;
-	}
-
-	static ID3D12Resource* CreateTexture(const wchar_t* name, TextureFormat format, uint32_t width, uint32_t height, const D3D12_CLEAR_VALUE* clear_value = nullptr,
-		D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
-	{
-		D3D12_HEAP_PROPERTIES heap_props = {};
-		heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
-
-		D3D12_RESOURCE_DESC resource_desc = {};
-		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-		resource_desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-		resource_desc.Format = TextureFormatToDXGIFormat(format);
-		resource_desc.Width = (uint64_t)width;
-		resource_desc.Height = height;
-		resource_desc.DepthOrArraySize = 1;
-		resource_desc.MipLevels = 1;
-		resource_desc.SampleDesc.Count = 1;
-		resource_desc.Flags = flags;
-
-		ID3D12Resource* texture;
-		DX_CHECK_HR(d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE,
-			&resource_desc, initial_state, clear_value, IID_PPV_ARGS(&texture)));
-		texture->SetName(name);
-
-		return texture;
-	}
-
-	static D3D12_RESOURCE_BARRIER TransitionBarrier(ID3D12Resource* resource, D3D12_RESOURCE_STATES state_before, D3D12_RESOURCE_STATES state_after)
-	{
-		D3D12_RESOURCE_BARRIER barrier = {};
-		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrier.Transition.pResource = resource;
-		barrier.Transition.Subresource = 0;
-		barrier.Transition.StateBefore = state_before;
-		barrier.Transition.StateAfter = state_after;
-		barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-
-		return barrier;
-	}
-
-	static void ExecuteCommandList(ID3D12CommandQueue* cmd_queue, ID3D12GraphicsCommandList6* cmd_list)
-	{
-		cmd_list->Close();
-		ID3D12CommandList* const command_lists[] = { cmd_list };
-		cmd_queue->ExecuteCommandLists(1, command_lists);
-	}
-
-	static void CommandQueueWaitOnFence(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value)
-	{
-		cmd_queue->Signal(fence, fence_value);
-
-		if (fence->GetCompletedValue() < fence_value)
-		{
-			HANDLE fence_event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
-			DX_ASSERT(fence_event && "Failed to create fence event handle");
-
-			DX_CHECK_HR(d3d_state.fence->SetEventOnCompletion(fence_value, fence_event));
-			::WaitForSingleObject(fence_event, (DWORD)UINT32_MAX);
-
-			::CloseHandle(fence_event);
 		}
 	}
 
@@ -518,7 +160,7 @@ namespace Renderer
 #endif
 
 		// Create the command queue for the swap chain
-		d3d_state.swapchain_command_queue = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
+		d3d_state.swapchain_command_queue = DX12::CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
 
 		// Create the swap chain
 		BOOL allow_tearing = FALSE;
@@ -561,11 +203,11 @@ namespace Renderer
 			DX_CHECK_HR_ERR(d3d_state.device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, frame_ctx->command_allocator, nullptr,
 				IID_PPV_ARGS(&frame_ctx->command_list)), "Failed to create command list");
 
-			frame_ctx->instance_buffer = CreateUploadBuffer(L"Instance buffer", sizeof(InstanceData) * RENDER_MESH_MAX_INSTANCES);
+			frame_ctx->instance_buffer = DX12::CreateUploadBuffer(L"Instance buffer", sizeof(InstanceData) * MAX_RENDER_MESHES);
 			frame_ctx->instance_buffer->Map(0, nullptr, (void**)&frame_ctx->instance_buffer_ptr);
 			frame_ctx->instance_vbv.BufferLocation = frame_ctx->instance_buffer->GetGPUVirtualAddress();
 			frame_ctx->instance_vbv.StrideInBytes = sizeof(InstanceData);
-			frame_ctx->instance_vbv.SizeInBytes = frame_ctx->instance_vbv.StrideInBytes * RENDER_MESH_MAX_INSTANCES;
+			frame_ctx->instance_vbv.SizeInBytes = frame_ctx->instance_vbv.StrideInBytes * MAX_RENDER_MESHES;
 		}
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.fence)), "Failed to create fence");
 
@@ -574,13 +216,13 @@ namespace Renderer
 		clear_value.Format = DXGI_FORMAT_D32_FLOAT;
 		clear_value.DepthStencil.Depth = 1.0;
 		clear_value.DepthStencil.Stencil = 0;
-		d3d_state.depth_buffer = CreateTexture(L"Depth buffer", TextureFormat_D32, d3d_state.render_width, d3d_state.render_height,
+		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
 			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
 		// Create descriptor heaps
-		d3d_state.descriptor_heap_rtv = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
-		d3d_state.descriptor_heap_dsv = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
-		d3d_state.descriptor_heap_cbv_srv_uav = CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+		d3d_state.descriptor_heap_rtv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
+		d3d_state.descriptor_heap_dsv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
+		d3d_state.descriptor_heap_cbv_srv_uav = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
 		d3d_state.cbv_srv_uav_current_index = ReservedDescriptor_Count;
 
 		// Create the DXC compiler state
@@ -589,34 +231,19 @@ namespace Renderer
 		d3d_state.dxc_utils->CreateDefaultIncludeHandler(&d3d_state.dxc_include_handler);
 
 		// Create the scene constant buffer
-		d3d_state.scene_cb = CreateUploadBuffer(L"Scene constant buffer", sizeof(SceneData));
+		d3d_state.scene_cb = DX12::CreateUploadBuffer(L"Scene constant buffer", sizeof(SceneData));
 		d3d_state.scene_cb->Map(0, nullptr, (void**)&d3d_state.scene_cb_ptr);
 
 		// Create the upload buffer
-		d3d_state.upload_buffer = CreateUploadBuffer(L"Generic upload buffer", DX_MB(256));
+		d3d_state.upload_buffer = DX12::CreateUploadBuffer(L"Generic upload buffer", DX_MB(256));
 		d3d_state.upload_buffer->Map(0, nullptr, (void**)&d3d_state.upload_buffer_ptr);
 	}
 
 	static void InitPipelines()
 	{
-		d3d_state.default_raster_pipeline.root_sig = CreateRootSignature();
-		d3d_state.default_raster_pipeline.pipeline_state = CreatePipelineState(d3d_state.default_raster_pipeline.root_sig,
+		d3d_state.default_raster_pipeline.root_sig = DX12::CreateRootSignature();
+		d3d_state.default_raster_pipeline.pipeline_state = DX12::CreatePipelineState(d3d_state.default_raster_pipeline.root_sig,
 			L"Include/Shaders/Default_VS_PS.hlsl", L"Include/Shaders/Default_VS_PS.hlsl");
-
-		D3D12_HEAP_PROPERTIES heap_props = {};
-		heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
-
-		D3D12_RESOURCE_DESC resource_desc = {};
-		resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-		resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-		resource_desc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-		resource_desc.Format = DXGI_FORMAT_UNKNOWN;
-		resource_desc.Width = sizeof(Vertex) * 6;
-		resource_desc.Height = 1;
-		resource_desc.DepthOrArraySize = 1;
-		resource_desc.MipLevels = 1;
-		resource_desc.SampleDesc.Count = 1;
-		resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
 	}
 
 	static void InitDearImGui()
@@ -682,7 +309,7 @@ namespace Renderer
 		clear_value.Format = DXGI_FORMAT_D32_FLOAT;
 		clear_value.DepthStencil.Depth = 1.0;
 		clear_value.DepthStencil.Stencil = 0;
-		d3d_state.depth_buffer = CreateTexture(L"Depth buffer", TextureFormat_D32, d3d_state.render_width, d3d_state.render_height,
+		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
 			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 	}
 
@@ -713,8 +340,6 @@ namespace Renderer
 			data.default_white_texture = Renderer::UploadTexture(upload_texture_params);
 		}
 
-		d3d_state.cbv_srv_uav_current_index += ReservedDescriptor_Count;
-
 		d3d_state.initialized = true;
 	}
 
@@ -729,7 +354,7 @@ namespace Renderer
 
 	void Flush()
 	{
-		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, d3d_state.fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, d3d_state.fence_value);
 	}
 
 	void BeginFrame(const Mat4x4& view, const Mat4x4& projection)
@@ -746,7 +371,7 @@ namespace Renderer
 		// Some examples on the internet wait right after presenting, which is not ideal
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
-		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, frame_ctx->back_buffer_fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, frame_ctx->back_buffer_fence_value);
 
 		// ----------------------------------------------------------------------------------
 		// Reset the command allocator and command list for the current frame
@@ -763,42 +388,6 @@ namespace Renderer
 			frame_ctx->command_allocator->Reset();
 			frame_ctx->command_list->Reset(frame_ctx->command_allocator, nullptr);
 		}
-	}
-
-	void EndFrame()
-	{
-		// ----------------------------------------------------------------------------------
-		// Transition the back buffer to the present state
-
-		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
-		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
-		D3D12_RESOURCE_BARRIER present_barrier = TransitionBarrier(frame_ctx->back_buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-		cmd_list->ResourceBarrier(1, &present_barrier);
-
-		// ----------------------------------------------------------------------------------
-		// Execute the command list for the current frame
-
-		ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
-
-		// ----------------------------------------------------------------------------------
-		// Present the back buffer on the swap chain
-
-		uint32_t sync_interval = d3d_state.vsync_enabled ? 1 : 0;
-		uint32_t present_flags = d3d_state.tearing_supported && !d3d_state.vsync_enabled ? DXGI_PRESENT_ALLOW_TEARING : 0;
-		DX_CHECK_HR(d3d_state.swapchain->Present(sync_interval, present_flags));
-
-		// ----------------------------------------------------------------------------------
-		// Signal the GPU with the fence value for the current frame, and set the current back buffer index to the next one
-
-		frame_ctx->back_buffer_fence_value = ++d3d_state.fence_value;
-		d3d_state.swapchain_command_queue->Signal(d3d_state.fence, frame_ctx->back_buffer_fence_value);
-		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
-
-		// ----------------------------------------------------------------------------------
-		// Increase the total frame index
-
-		d3d_state.frame_index++;
-		data.stats = { 0 };
 	}
 
 	void RenderFrame()
@@ -829,7 +418,8 @@ namespace Renderer
 		// Transition the back buffer to the render target state, and clear it
 
 		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
-		D3D12_RESOURCE_BARRIER render_target_barrier = TransitionBarrier(back_buffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+		D3D12_RESOURCE_BARRIER render_target_barrier = DX12::TransitionBarrier(back_buffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		cmd_list->ResourceBarrier(1, &render_target_barrier);
 
 		float clear_color[4] = { 1, 0, 1, 1 };
@@ -875,9 +465,45 @@ namespace Renderer
 		}
 	}
 
+	void EndFrame()
+	{
+		// ----------------------------------------------------------------------------------
+		// Transition the back buffer to the present state
+
+		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
+		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
+		D3D12_RESOURCE_BARRIER present_barrier = DX12::TransitionBarrier(frame_ctx->back_buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		cmd_list->ResourceBarrier(1, &present_barrier);
+
+		// ----------------------------------------------------------------------------------
+		// Execute the command list for the current frame
+
+		DX12::ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
+
+		// ----------------------------------------------------------------------------------
+		// Present the back buffer on the swap chain
+
+		uint32_t sync_interval = d3d_state.vsync_enabled ? 1 : 0;
+		uint32_t present_flags = d3d_state.tearing_supported && !d3d_state.vsync_enabled ? DXGI_PRESENT_ALLOW_TEARING : 0;
+		DX_CHECK_HR(d3d_state.swapchain->Present(sync_interval, present_flags));
+
+		// ----------------------------------------------------------------------------------
+		// Signal the GPU with the fence value for the current frame, and set the current back buffer index to the next one
+
+		frame_ctx->back_buffer_fence_value = ++d3d_state.fence_value;
+		d3d_state.swapchain_command_queue->Signal(d3d_state.fence, frame_ctx->back_buffer_fence_value);
+		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
+
+		// ----------------------------------------------------------------------------------
+		// Increase the total frame index and reset the render statistics
+
+		d3d_state.frame_index++;
+		data.stats = { 0 };
+	}
+
 	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle, const Mat4x4& transform)
 	{
-		DX_ASSERT(data.stats.mesh_count < RENDER_MESH_MAX_INSTANCES);
+		DX_ASSERT(data.stats.mesh_count < MAX_RENDER_MESHES);
 		data.render_mesh_data[data.stats.mesh_count] =
 		{
 			// TODO: Default mesh handle? (e.g. Cube)
@@ -890,11 +516,11 @@ namespace Renderer
 
 	ResourceHandle UploadTexture(const UploadTextureParams& params)
 	{
-		ID3D12Resource* resource = CreateTexture(params.name, params.format, params.width, params.height);
+		ID3D12Resource* resource = DX12::CreateTexture(params.name, TextureFormatToDXGIFormat(params.format), params.width, params.height);
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
-		D3D12_RESOURCE_BARRIER copy_dst_barrier = TransitionBarrier(resource,
+		D3D12_RESOURCE_BARRIER copy_dst_barrier = DX12::TransitionBarrier(resource,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_COPY_DEST);
 		cmd_list->ResourceBarrier(1, &copy_dst_barrier);
@@ -934,17 +560,17 @@ namespace Renderer
 
 		cmd_list->CopyTextureRegion(&dst_loc, 0, 0, 0, &src_loc, nullptr);
 
-		D3D12_RESOURCE_BARRIER pixel_src_barrier = TransitionBarrier(resource,
+		D3D12_RESOURCE_BARRIER pixel_src_barrier = DX12::TransitionBarrier(resource,
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		cmd_list->ResourceBarrier(1, &pixel_src_barrier);
 		
 		// Execute the command list, wait on it, and reset it
-		ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
+		DX12::ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
 		cmd_list->Reset(frame_ctx->command_allocator, nullptr);
 
 		uint64_t fence_value = ++d3d_state.fence_value;
-		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
 		srv_desc.Format = resource->GetDesc().Format;
@@ -972,8 +598,8 @@ namespace Renderer
 		size_t vb_total_bytes = params.num_vertices * sizeof(Vertex);
 		size_t ib_total_bytes = params.num_indices * sizeof(uint32_t);
 
-		ID3D12Resource* vertex_buffer = CreateBuffer(L"Vertex buffer", vb_total_bytes);
-		ID3D12Resource* index_buffer = CreateBuffer(L"Index buffer", ib_total_bytes);
+		ID3D12Resource* vertex_buffer = DX12::CreateBuffer(L"Vertex buffer", vb_total_bytes);
+		ID3D12Resource* index_buffer = DX12::CreateBuffer(L"Index buffer", ib_total_bytes);
 
 		memcpy(d3d_state.upload_buffer_ptr, params.vertices, vb_total_bytes);
 		memcpy(d3d_state.upload_buffer_ptr + vb_total_bytes, params.indices, ib_total_bytes);
@@ -985,16 +611,16 @@ namespace Renderer
 
 		D3D12_RESOURCE_BARRIER barriers[] =
 		{
-			TransitionBarrier(vertex_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
-			TransitionBarrier(index_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER)
+			DX12::TransitionBarrier(vertex_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
+			DX12::TransitionBarrier(index_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER)
 		};
 		cmd_list->ResourceBarrier(2, barriers);
 
-		ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
+		DX12::ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
 		cmd_list->Reset(frame_ctx->command_allocator, nullptr);
 
 		uint64_t fence_value = ++d3d_state.fence_value;
-		CommandQueueWaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
 
 		MeshResource mesh_resource = {};
 		mesh_resource.vertex_buffer = vertex_buffer;
@@ -1026,16 +652,20 @@ namespace Renderer
 
 	void OnImGuiRender()
 	{
+		DXGI_QUERY_VIDEO_MEMORY_INFO local_mem_info = {};
+		d3d_state.adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &local_mem_info);
+
+		DXGI_QUERY_VIDEO_MEMORY_INFO non_local_mem_info = {};
+		d3d_state.adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &non_local_mem_info);
+
 		ImGui::Begin("Renderer");
 
-		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("General"))
 		{
 			ImGui::Text("Back buffer count: %u", DX_BACK_BUFFER_COUNT);
 			ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
 		}
 
-		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("Settings"))
 		{
 			ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
@@ -1043,12 +673,24 @@ namespace Renderer
 			ImGui::Text("Tearing: %s", d3d_state.tearing_supported ? "true" : "false");
 		}
 
-		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("Statistics"))
 		{
 			ImGui::Text("Draw calls: %u", data.stats.draw_call_count);
 			ImGui::Text("Total vertex count: %u", data.stats.total_vertex_count);
 			ImGui::Text("Total triangle count: %u", data.stats.total_triangle_count);
+		}
+
+		if (ImGui::CollapsingHeader("GPU Memory"))
+		{
+			ImGui::Text("Local budget: %u MB", DX_TO_MB(local_mem_info.Budget));
+			ImGui::Text("Local usage: %u MB", DX_TO_MB(local_mem_info.CurrentUsage));
+			ImGui::Text("Local reserved: %u MB", DX_TO_MB(local_mem_info.CurrentReservation));
+			ImGui::Text("Local available: %u MB", DX_TO_MB(local_mem_info.AvailableForReservation));
+
+			ImGui::Text("Non-local budget: %u MB", DX_TO_MB(non_local_mem_info.Budget));
+			ImGui::Text("Non-local usage: %u MB", DX_TO_MB(non_local_mem_info.CurrentUsage));
+			ImGui::Text("Non-local reserved: %u MB", DX_TO_MB(non_local_mem_info.CurrentReservation));
+			ImGui::Text("Non-local available: %u MB", DX_TO_MB(non_local_mem_info.AvailableForReservation));
 		}
 
 		ImGui::End();

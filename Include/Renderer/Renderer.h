@@ -46,8 +46,8 @@ namespace Renderer
 	void Flush();
 
 	void BeginFrame(const Mat4x4& view, const Mat4x4& projection);
-	void EndFrame();
 	void RenderFrame();
+	void EndFrame();
 
 	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle, const Mat4x4& transform);
 

@@ -1,5 +1,49 @@
 #pragma once
 
+// TODO: Should add HR error explanation to these macros as well
+#define DX_CHECK_HR_ERR(hr, error) \
+do { \
+	if (FAILED(hr)) \
+	{ \
+		DX_ASSERT(false && (error)); \
+	} \
+} \
+while (false)
+
+#define DX_CHECK_HR(hr) DX_CHECK_HR_ERR(hr, "")
+
+#define DX_SUCCESS_HR(hr) \
+if (SUCCEEDED(hr))
+
+#define DX_FAILED_HR(hr) \
+if (FAILED(hr)) \
+{ \
+	DX_ASSERT(false); \
+} \
+else
+
+#if 0
+#define DX_RELEASE_OBJECT(object) \
+if ((object)) \
+{ \
+	ULONG ref_count = (object)->Release(); \
+	DX_ASSERT(ref_count == 0); \
+} \
+(object) = nullptr
+#else
+#define DX_RELEASE_OBJECT(object) \
+if ((object)) \
+{ \
+	ULONG ref_count = (object)->Release(); \
+	while (ref_count > 0) \
+	{ \
+/* Add a log warning here if it has to release more than once */ \
+		ref_count = (object)->Release(); \
+	} \
+} \
+(object) = nullptr
+#endif
+
 struct RasterPipeline
 {
 	ID3D12RootSignature* root_sig;
@@ -25,6 +69,7 @@ struct D3DState
 #define DX_DESCRIPTOR_HEAP_SIZE_RTV 1
 #define DX_DESCRIPTOR_HEAP_SIZE_DSV 1
 #define DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV 1024
+#define DX_TIMESTAMP_HEAP_MAX_QUERIES_PER_FRAME 64
 
 	// Adapter and device
 	IDXGIAdapter4* adapter;

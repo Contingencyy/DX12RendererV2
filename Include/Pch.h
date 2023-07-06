@@ -24,6 +24,10 @@ using namespace DXMath;
 #define DX_MB(x) ((x) << 20)
 #define DX_GB(x) ((x) << 30)
 
+#define DX_TO_KB(x) ((x) >> 10)
+#define DX_TO_MB(x) ((x) >> 20)
+#define DX_TO_GB(x) ((x) >> 30)
+
 #define DX_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define DX_ALIGN_POW2(x, align) ((intptr_t)(x) + ((align) - 1) & (-(intptr_t)(align)))
 #define DX_ALIGN_DOWN_POW2(x, align) ((intptr_t)(x) & (-(intptr_t)(align)))
