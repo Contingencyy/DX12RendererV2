@@ -20,16 +20,12 @@ namespace Application
 
 		bool running = false;
 		bool should_close = false;
-
-		ResourceHandle texture;
-		Model model;
-		Model model2;
 	} static data;
 
 	void Init()
 	{
 		// ----------------------------------------------------------------------------------
-		// Initialize the window
+		// Create the window
 
 		Window::WindowProps window_props = {};
 		window_props.name = L"DXV2 Renderer";
@@ -39,7 +35,7 @@ namespace Application
 		Window::Create(window_props);
 
 		// ----------------------------------------------------------------------------------
-		// Initialize the renderer
+		// Initialize core systems
 
 		Renderer::RendererInitParams renderer_init_params = {};
 		renderer_init_params.hWnd = Window::GetHWnd();
@@ -47,14 +43,15 @@ namespace Application
 		renderer_init_params.height = window_props.height;
 
 		Renderer::Init(renderer_init_params);
+		AssetManager::Init();
 
 		// ----------------------------------------------------------------------------------
 		// Load textures
 
-		data.texture = AssetManager::LoadTexture("Assets/Textures/kermit.png");
-		//data.model = AssetManager::LoadModel("Assets/Models/SponzaPBR/NewSponza_Main_glTF_002.gltf");
-		data.model = AssetManager::LoadModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
-		data.model2 = AssetManager::LoadModel("Assets/Models/Sponza/Sponza.gltf");
+		AssetManager::LoadTexture("Assets/Textures/kermit.png");
+		//AssetManager::LoadModel("Assets/Models/SponzaPBR/NewSponza_Main_glTF_002.gltf");
+		AssetManager::LoadModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
+		AssetManager::LoadModel("Assets/Models/Sponza/Sponza.gltf");
 		
 		data.running = true;
 	}
@@ -63,6 +60,7 @@ namespace Application
 	{
 		data.running = false;
 
+		AssetManager::Exit();
 		Renderer::Exit();
 
 		Window::Destroy();
@@ -129,38 +127,11 @@ namespace Application
 		Scene::Update(dt);
 	}
 
-	static void RenderModelNode(const Model& model, const Model::Node& node, Mat4x4& current_transform)
-	{
-		for (uint32_t mesh_idx = 0; mesh_idx < node.num_meshes; ++mesh_idx)
-		{
-			Renderer::RenderMesh(node.mesh_handles[mesh_idx], node.texture_handles[mesh_idx], current_transform);
-		}
-
-		for (uint32_t child_idx = 0; child_idx < node.num_children; ++child_idx)
-		{
-			const Model::Node& child_node = model.nodes[node.children[child_idx]];
-			Mat4x4 node_transform = Mat4x4Mul(child_node.transform, current_transform);
-			RenderModelNode(model, child_node, node_transform);
-		}
-	}
-
-	static void RenderModel(const Model& model, Mat4x4& current_transform)
-	{
-		for (uint32_t root_node_idx = 0; root_node_idx < model.num_root_nodes; ++root_node_idx)
-		{
-			const Model::Node& root_node = model.nodes[model.root_nodes[root_node_idx]];
-			Mat4x4 root_transform = Mat4x4Mul(root_node.transform, current_transform);
-			RenderModelNode(model, root_node, root_transform);
-		}
-	}
-
 	void Render()
 	{
 		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
 
-		Mat4x4 model_transform = Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(10.0));
-		RenderModel(data.model, model_transform);
-		RenderModel(data.model2, model_transform);
+		Scene::Render();
 
 		// Render the current frame
 		Renderer::RenderFrame();

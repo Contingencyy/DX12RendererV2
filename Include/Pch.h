@@ -8,6 +8,7 @@
 
 #include "Allocator.h"
 #include "DXMath.h"
+#include "Hash.h"
 
 using namespace DXMath;
 

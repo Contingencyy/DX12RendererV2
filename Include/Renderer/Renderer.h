@@ -24,7 +24,7 @@ namespace Renderer
 		uint32_t height;
 		uint8_t* bytes;
 
-		const wchar_t* name;
+		const char* name;
 	};
 
 	struct Vertex

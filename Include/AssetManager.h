@@ -27,7 +27,12 @@ struct Model
 namespace AssetManager
 {
 
-	ResourceHandle LoadTexture(const char* filepath);
-	Model LoadModel(const char* filepath);
+	void Init();
+	void Exit();
+
+	void LoadTexture(const char* filepath);
+	ResourceHandle GetTexture(const char* filepath);
+	void LoadModel(const char* filepath);
+	Model* GetModel(const char* filepath);
 
 }

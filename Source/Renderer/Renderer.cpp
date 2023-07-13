@@ -19,8 +19,6 @@ namespace Renderer
 
 #define MAX_RENDER_MESHES 1000
 
-	static Allocator renderer_alloc;
-
 	enum ReservedDescriptor : uint32_t
 	{
 		ReservedDescriptor_DearImGui,
@@ -50,6 +48,8 @@ namespace Renderer
 
 	struct InternalData
 	{
+		Allocator allocator;
+
 		ResourceSlotmap<MeshResource>* mesh_slotmap;
 		ResourceSlotmap<TextureResource>* texture_slotmap;
 
@@ -321,12 +321,10 @@ namespace Renderer
 		InitDearImGui();
 
 		// Initialize slotmaps
-		data.texture_slotmap = renderer_alloc.Allocate<ResourceSlotmap<TextureResource>>();
-		data.texture_slotmap->Init(&renderer_alloc);
-		data.mesh_slotmap = renderer_alloc.Allocate<ResourceSlotmap<MeshResource>>();
-		data.mesh_slotmap->Init(&renderer_alloc);
+		data.texture_slotmap = data.allocator.AllocateConstruct<ResourceSlotmap<TextureResource>>(&data.allocator);
+		data.mesh_slotmap = data.allocator.AllocateConstruct<ResourceSlotmap<MeshResource>>(&data.allocator);
 
-		data.render_mesh_data = renderer_alloc.Allocate<RenderMeshData>(1000);
+		data.render_mesh_data = data.allocator.Allocate<RenderMeshData>(1000);
 
 		// Default textures
 		{
@@ -336,7 +334,7 @@ namespace Renderer
 			upload_texture_params.height = 1;
 			upload_texture_params.format = TextureFormat_RGBA8;
 			upload_texture_params.bytes = (uint8_t*)&white_texture_data;
-			upload_texture_params.name = L"Default white texture";
+			upload_texture_params.name = "Default white texture";
 			data.default_white_texture = Renderer::UploadTexture(upload_texture_params);
 		}
 
@@ -520,7 +518,7 @@ namespace Renderer
 
 	ResourceHandle UploadTexture(const UploadTextureParams& params)
 	{
-		ID3D12Resource* resource = DX12::CreateTexture(params.name, TextureFormatToDXGIFormat(params.format), params.width, params.height);
+		ID3D12Resource* resource = DX12::CreateTexture(DX12::UTF16FromUTF8(&g_thread_alloc, params.name), TextureFormatToDXGIFormat(params.format), params.width, params.height);
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;

@@ -1,10 +1,36 @@
 #include "Pch.h"
 #include "Scene.h"
-
+#include "Renderer/Renderer.h"
+#include "AssetManager.h"
 #include "Input.h"
 
 namespace Scene
 {
+
+	static void RenderModelNode(const Model& model, const Model::Node& node, Mat4x4& current_transform)
+	{
+		for (uint32_t mesh_idx = 0; mesh_idx < node.num_meshes; ++mesh_idx)
+		{
+			Renderer::RenderMesh(node.mesh_handles[mesh_idx], node.texture_handles[mesh_idx], current_transform);
+		}
+
+		for (uint32_t child_idx = 0; child_idx < node.num_children; ++child_idx)
+		{
+			const Model::Node& child_node = model.nodes[node.children[child_idx]];
+			Mat4x4 node_transform = Mat4x4Mul(child_node.transform, current_transform);
+			RenderModelNode(model, child_node, node_transform);
+		}
+	}
+
+	static void RenderModel(const Model& model, Mat4x4& current_transform)
+	{
+		for (uint32_t root_node_idx = 0; root_node_idx < model.num_root_nodes; ++root_node_idx)
+		{
+			const Model::Node& root_node = model.nodes[model.root_nodes[root_node_idx]];
+			Mat4x4 root_transform = Mat4x4Mul(root_node.transform, current_transform);
+			RenderModelNode(model, root_node, root_transform);
+		}
+	}
 
 	struct InternalData
 	{
@@ -46,6 +72,17 @@ namespace Scene
 		// Make the camera view and projection matrices
 		data.camera_view = Mat4x4Inverse(data.camera_transform);
 		data.camera_projection = Mat4x4Perspective(Deg2Rad(60.0), 16.0 / 9.0, 0.1, 10000.0);
+	}
+
+	void Render()
+	{
+		Mat4x4 model_transform = Mat4x4FromTRS(Vec3(0.0), EulerToQuat(Vec3(0.0)), Vec3(10.0));
+
+		Model* chess_model = AssetManager::GetModel("Assets/Models/ABeautifulGame/ABeautifulGame.gltf");
+		Model* sponza_model = AssetManager::GetModel("Assets/Models/Sponza/Sponza.gltf");
+
+		RenderModel(*chess_model, model_transform);
+		RenderModel(*sponza_model, model_transform);
 	}
 
 	Mat4x4 GetCameraView()

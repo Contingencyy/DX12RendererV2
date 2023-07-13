@@ -209,6 +209,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     <ClInclude Include="Include\AssetManager.h" />
     <ClInclude Include="Include\FileIO.h" />
     <ClInclude Include="Include\DXMath.h" />
+    <ClInclude Include="Include\Hash.h" />
     <ClInclude Include="Include\Input.h" />
     <ClInclude Include="Include\Pch.h" />
     <ClInclude Include="Include\Renderer\D3DState.h" />

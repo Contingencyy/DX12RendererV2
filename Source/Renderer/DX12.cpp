@@ -4,6 +4,21 @@
 
 namespace DX12
 {
+	wchar_t* UTF16FromUTF8(Allocator* alloc, const char* utf8)
+	{
+		size_t src_len = strlen(utf8);
+
+		if (src_len == 0)
+			return nullptr;
+
+		int dst_len = MultiByteToWideChar(CP_UTF8, 0, utf8, (int)src_len, NULL, 0);
+		wchar_t* utf16 = alloc->Allocate<wchar_t>(dst_len + 1);
+
+		MultiByteToWideChar(CP_UTF8, 0, utf8, (int)src_len, (wchar_t*)utf16, dst_len);
+		utf16[dst_len] = 0;
+
+		return utf16;
+	}
 
 	ID3D12CommandQueue* CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type, D3D12_COMMAND_QUEUE_PRIORITY priority)
 	{

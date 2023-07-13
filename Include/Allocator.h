@@ -19,6 +19,13 @@ struct Allocator
 	{
 		return (T*)Allocate(sizeof(T) * count, alignof(T));
 	}
+	template<typename T, typename... TArgs>
+	T* AllocateConstruct(TArgs&&... args)
+	{
+		T* obj = (T*)Allocate(sizeof(T), alignof(T));
+		new (obj) T((args)...);
+		return obj;
+	}
 	void Reset();
 	void Decommit();
 
