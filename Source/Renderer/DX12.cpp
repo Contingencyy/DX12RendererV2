@@ -4,7 +4,7 @@
 
 namespace DX12
 {
-	wchar_t* UTF16FromUTF8(Allocator* alloc, const char* utf8)
+	wchar_t* UTF16FromUTF8(LinearAllocator* alloc, const char* utf8)
 	{
 		size_t src_len = strlen(utf8);
 
@@ -71,7 +71,7 @@ namespace DX12
 		static_samplers[0].ShaderRegister = 0;
 		static_samplers[0].RegisterSpace = 0;
 		static_samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-
+		
 		D3D12_VERSIONED_ROOT_SIGNATURE_DESC versioned_root_sig_desc = {};
 		versioned_root_sig_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
 		versioned_root_sig_desc.Desc_1_1.NumParameters = DX_ARRAY_SIZE(root_params);
@@ -82,7 +82,7 @@ namespace DX12
 			D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-		ID3DBlob* serialized_root_sig, * error;
+		ID3DBlob* serialized_root_sig, *error;
 		DX_CHECK_HR_ERR(D3D12SerializeVersionedRootSignature(&versioned_root_sig_desc, &serialized_root_sig, &error), "Failed to serialize versioned root signature");
 		if (error)
 		{

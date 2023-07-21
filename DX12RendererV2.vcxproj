@@ -185,7 +185,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Source\Allocator.cpp" />
+    <ClCompile Include="Source\LinearAllocator.cpp" />
     <ClCompile Include="Source\AssetManager.cpp" />
     <ClCompile Include="Source\FileIO.cpp" />
     <ClCompile Include="Source\Application.cpp" />
@@ -204,7 +204,8 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     <ClInclude Include="Extern\imgui\imgui.h" />
     <ClInclude Include="Extern\imgui\imgui_impl_dx12.h" />
     <ClInclude Include="Extern\imgui\imgui_impl_win32.h" />
-    <ClInclude Include="Include\Allocator.h" />
+    <ClInclude Include="Include\Containers\Hashmap.h" />
+    <ClInclude Include="Include\LinearAllocator.h" />
     <ClInclude Include="Include\Application.h" />
     <ClInclude Include="Include\AssetManager.h" />
     <ClInclude Include="Include\FileIO.h" />
@@ -216,7 +217,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     <ClInclude Include="Include\Renderer\DX12.h" />
     <ClInclude Include="Include\Renderer\Renderer.h" />
     <ClInclude Include="Include\Shaders\Shared.hlsl.h" />
-    <ClInclude Include="Include\ResourceSlotmap.h" />
+    <ClInclude Include="Include\Containers\ResourceSlotmap.h" />
     <ClInclude Include="Include\Scene.h" />
     <ClInclude Include="Include\Window.h" />
   </ItemGroup>

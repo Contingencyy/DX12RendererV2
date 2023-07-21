@@ -6,7 +6,7 @@
 
 */
 
-#include "Allocator.h"
+#include "LinearAllocator.h"
 #include "DXMath.h"
 #include "Hash.h"
 

@@ -2,8 +2,9 @@
 
 typedef unsigned char uint8_t;
 
-struct Allocator
+struct LinearAllocator
 {
+
 #define ALLOCATOR_DEFAULT_RESERVE_SIZE DX_GB(4ull)
 #define ALLOCATOR_DEFAULT_COMMIT_CHUNK_SIZE DX_KB(4ull)
 #define ALLOCATOR_DEFAULT_DECOMMIT_LEFTOVER_SIZE ALLOCATOR_DEFAULT_COMMIT_CHUNK_SIZE
@@ -27,8 +28,9 @@ struct Allocator
 		return obj;
 	}
 	void Reset();
+	void Reset(void* ptr);
 	void Decommit();
 
 };
 
-extern thread_local Allocator g_thread_alloc;
+extern thread_local LinearAllocator g_thread_alloc;

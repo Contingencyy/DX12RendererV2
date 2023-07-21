@@ -31,8 +31,9 @@ VSOut VSMain(VertexLayout vertex)
 
 SamplerState g_samp_point_wrap : register(s0);
 
+[earlydepthstencil]
 float4 PSMain(VSOut IN) : SV_TARGET
 {
-    Texture2D<float4> base_color_texture = ResourceDescriptorHeap[IN.base_color_texture];
+    Texture2D<float4> base_color_texture = ResourceDescriptorHeap[NonUniformResourceIndex(IN.base_color_texture)];
     return base_color_texture.Sample(g_samp_point_wrap, IN.uv);
 }

@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "Allocator.h"
+#include "LinearAllocator.h"
 
 namespace VirtualMemory
 {
@@ -32,14 +32,14 @@ namespace VirtualMemory
 
 }
 
-size_t GetAlignedByteSizeLeft(Allocator* allocator, size_t align)
+size_t GetAlignedByteSizeLeft(LinearAllocator* allocator, size_t align)
 {
 	size_t byte_size_left = allocator->end_ptr - allocator->at_ptr;
 	size_t aligned_byte_size_left = DX_ALIGN_DOWN_POW2(byte_size_left, align);
 	return aligned_byte_size_left;
 }
 
-void AdvancePointer(Allocator* allocator, uint8_t* new_at_ptr)
+void AdvancePointer(LinearAllocator* allocator, uint8_t* new_at_ptr)
 {
 	if (new_at_ptr >= allocator->base_ptr && new_at_ptr < allocator->end_ptr)
 	{
@@ -55,7 +55,7 @@ void AdvancePointer(Allocator* allocator, uint8_t* new_at_ptr)
 	}
 }
 
-void* Allocator::Allocate(size_t num_bytes, size_t align)
+void* LinearAllocator::Allocate(size_t num_bytes, size_t align)
 {
 	if (!base_ptr)
 	{
@@ -79,13 +79,20 @@ void* Allocator::Allocate(size_t num_bytes, size_t align)
 	return alloc;
 }
 
-void Allocator::Reset()
+void LinearAllocator::Reset()
 {
 	// Reset the current at pointer to the beginning
 	at_ptr = base_ptr;
 }
 
-void Allocator::Decommit()
+void LinearAllocator::Reset(void* ptr)
+{
+	// Reset the current at pointer to a previous state
+	// TODO: Scope stacks, call finalizers when resetting the pointer
+	at_ptr = (uint8_t*)ptr;
+}
+
+void LinearAllocator::Decommit()
 {
 	// This will decommit all of the memory in the allocator, except for the last ALLOCATOR_DEFAULT_DECOMMIT_LEFTOVER_SIZE bytes
 	uint8_t* at_aligned = (uint8_t*)DX_ALIGN_POW2(at_ptr, ALLOCATOR_DEFAULT_COMMIT_CHUNK_SIZE);
@@ -99,4 +106,4 @@ void Allocator::Decommit()
 	}
 }
 
-thread_local Allocator g_thread_alloc;
+thread_local LinearAllocator g_thread_alloc;

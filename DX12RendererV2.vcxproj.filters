@@ -51,7 +51,7 @@
     <ClCompile Include="Source\FileIO.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Allocator.cpp">
+    <ClCompile Include="Source\LinearAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Source\Input.cpp">
@@ -95,7 +95,7 @@
     <ClInclude Include="Include\FileIO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Include\Allocator.h">
+    <ClInclude Include="Include\LinearAllocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\Input.h">
@@ -104,7 +104,7 @@
     <ClInclude Include="Include\Scene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Include\ResourceSlotmap.h">
+    <ClInclude Include="Include\Containers\ResourceSlotmap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\AssetManager.h">
@@ -120,6 +120,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Include\Hash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\Containers\Hashmap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

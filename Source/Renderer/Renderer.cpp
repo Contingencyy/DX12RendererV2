@@ -48,7 +48,7 @@ namespace Renderer
 
 	struct InternalData
 	{
-		Allocator allocator;
+		LinearAllocator allocator;
 
 		ResourceSlotmap<MeshResource>* mesh_slotmap;
 		ResourceSlotmap<TextureResource>* texture_slotmap;
@@ -98,6 +98,9 @@ namespace Renderer
 
 	static void InitD3DState(const RendererInitParams& params)
 	{
+		d3d_state.render_width = params.width;
+		d3d_state.render_height = params.height;
+
 #ifdef _DEBUG
 		// Enable debug layer
 		// TODO: Add GPU validation toggle
@@ -188,8 +191,11 @@ namespace Renderer
 		DX_CHECK_HR(dxgi_factory->MakeWindowAssociation(params.hWnd, DXGI_MWA_NO_ALT_ENTER));
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
-		d3d_state.render_width = params.width;
-		d3d_state.render_height = params.height;
+		// Create descriptor heaps
+		d3d_state.descriptor_heap_rtv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
+		d3d_state.descriptor_heap_dsv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
+		d3d_state.descriptor_heap_cbv_srv_uav = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+		d3d_state.cbv_srv_uav_current_index = ReservedDescriptor_Count;
 
 		// Create command queue, list, and allocator
 		//d3d_state.command_queue_direct = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
@@ -208,6 +214,16 @@ namespace Renderer
 			frame_ctx->instance_vbv.BufferLocation = frame_ctx->instance_buffer->GetGPUVirtualAddress();
 			frame_ctx->instance_vbv.StrideInBytes = sizeof(InstanceData);
 			frame_ctx->instance_vbv.SizeInBytes = frame_ctx->instance_vbv.StrideInBytes * MAX_RENDER_MESHES;
+
+			uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + back_buffer_idx * rtv_increment_size };
+			D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
+			rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+			rtv_desc.Texture2D.MipSlice = 0;
+			rtv_desc.Texture2D.PlaneSlice = 0;
+
+			d3d_state.device->CreateRenderTargetView(frame_ctx->back_buffer, &rtv_desc, rtv_handle);
 		}
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.fence)), "Failed to create fence");
 
@@ -219,11 +235,14 @@ namespace Renderer
 		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
 			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
-		// Create descriptor heaps
-		d3d_state.descriptor_heap_rtv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
-		d3d_state.descriptor_heap_dsv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
-		d3d_state.descriptor_heap_cbv_srv_uav = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
-		d3d_state.cbv_srv_uav_current_index = ReservedDescriptor_Count;
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
+		dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
+		dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		dsv_desc.Texture2D.MipSlice = 0;
+		dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
+
+		d3d_state.device->CreateDepthStencilView(d3d_state.depth_buffer, &dsv_desc, dsv_handle);
 
 		// Create the DXC compiler state
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
@@ -357,10 +376,6 @@ namespace Renderer
 
 	void BeginFrame(const Mat4x4& view, const Mat4x4& projection)
 	{
-		d3d_state.scene_cb_ptr->view = view;
-		d3d_state.scene_cb_ptr->projection = projection;
-		d3d_state.scene_cb_ptr->view_projection = Mat4x4Mul(d3d_state.scene_cb_ptr->view, d3d_state.scene_cb_ptr->projection);
-
 		// ----------------------------------------------------------------------------------
 		// Wait on the current back buffer until all commands on it have finished execution
 
@@ -370,6 +385,10 @@ namespace Renderer
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, frame_ctx->back_buffer_fence_value);
+
+		d3d_state.scene_cb_ptr->view = view;
+		d3d_state.scene_cb_ptr->projection = projection;
+		d3d_state.scene_cb_ptr->view_projection = Mat4x4Mul(d3d_state.scene_cb_ptr->view, d3d_state.scene_cb_ptr->projection);
 
 		// ----------------------------------------------------------------------------------
 		// Reset the command allocator and command list for the current frame
@@ -395,22 +414,10 @@ namespace Renderer
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 
-		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
-		rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-		rtv_desc.Texture2D.MipSlice = 0;
-		rtv_desc.Texture2D.PlaneSlice = 0;
-
+		uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + d3d_state.current_back_buffer_idx * rtv_increment_size };
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
 		ID3D12Resource* back_buffer = frame_ctx->back_buffer;
-		d3d_state.device->CreateRenderTargetView(back_buffer, &rtv_desc, d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart());
-
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
-		dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
-		dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-		dsv_desc.Texture2D.MipSlice = 0;
-		dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
-
-		d3d_state.device->CreateDepthStencilView(d3d_state.depth_buffer, &dsv_desc, d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart());
 		
 		// ----------------------------------------------------------------------------------
 		// Transition the back buffer to the render target state, and clear it
@@ -421,8 +428,8 @@ namespace Renderer
 		cmd_list->ResourceBarrier(1, &render_target_barrier);
 
 		float clear_color[4] = { 1, 0, 1, 1 };
-		cmd_list->ClearRenderTargetView(d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart(), clear_color, 0, nullptr);
-		cmd_list->ClearDepthStencilView(d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart(), D3D12_CLEAR_FLAG_DEPTH, 1.0, 0, 0, nullptr);
+		cmd_list->ClearRenderTargetView(rtv_handle, clear_color, 0, nullptr);
+		cmd_list->ClearDepthStencilView(dsv_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0, 0, 0, nullptr);
 
 		// ----------------------------------------------------------------------------------
 		// Draw a triangle
@@ -432,9 +439,6 @@ namespace Renderer
 
 		cmd_list->RSSetViewports(1, &viewport);
 		cmd_list->RSSetScissorRects(1, &scissor_rect);
-
-		D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart();
-		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
 		cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
 
 		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.root_sig);
@@ -715,8 +719,9 @@ namespace Renderer
 
 		ImGui::Render();
 
-		D3D12_CPU_DESCRIPTOR_HANDLE imgui_srv_handle = d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart();
-		cmd_list->OMSetRenderTargets(1, &imgui_srv_handle, FALSE, nullptr);
+		uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		D3D12_CPU_DESCRIPTOR_HANDLE imgui_rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + d3d_state.current_back_buffer_idx * rtv_increment_size };
+		cmd_list->OMSetRenderTargets(1, &imgui_rtv_handle, FALSE, nullptr);
 		cmd_list->SetDescriptorHeaps(1, &d3d_state.descriptor_heap_cbv_srv_uav);
 
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);

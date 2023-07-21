@@ -3,7 +3,7 @@
 namespace DX12
 {
 
-	wchar_t* UTF16FromUTF8(Allocator* alloc, const char* utf8);
+	wchar_t* UTF16FromUTF8(LinearAllocator* alloc, const char* utf8);
 
 	// ------------------------------------------------------------------------------------------------
 	// Command queues, descriptor heaps

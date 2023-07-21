@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "AssetManager.h"
 #include "FileIO.h"
+#include "Containers/Hashmap.h"
 #include "Renderer/Renderer.h"
 
 #define CGLTF_IMPLEMENTATION
@@ -86,151 +87,18 @@ static char* CreatePathFromUri(const char* filepath, const char* uri)
 namespace AssetManager
 {
 
-    template<typename TAsset>
-    class AssetHashmap
-    {
-    public:
-        static constexpr const char* SLOT_UNUSED = "";
-
-    public:
-        AssetHashmap(Allocator* alloc, size_t capacity = 1024)
-            : m_allocator(alloc), m_capacity(capacity), m_size(0)
-        {
-            m_slots = m_allocator->Allocate<Slot>(m_capacity);
-
-            for (uint32_t i = 0; i < m_capacity; ++i)
-            {
-                m_slots[i].key = SLOT_UNUSED;
-            }
-        }
-
-        ~AssetHashmap()
-        {
-            if constexpr (!std::is_trivially_destructible_v<TAsset>)
-            {
-                for (size_t i = 0; i < m_capacity; ++i)
-                {
-                    Slot* slot = &m_slots[i];
-
-                    if (slot->key != SLOT_UNUSED)
-                    {
-                        slot->value.~TAsset();
-                    }
-                }
-            }
-        }
-
-        AssetHashmap(const AssetHashmap& other) = delete;
-        AssetHashmap(AssetHashmap&& other) = delete;
-        const AssetHashmap& operator=(const AssetHashmap& other) = delete;
-        AssetHashmap&& operator=(AssetHashmap&& other) = delete;
-
-        void Insert(const char* key, TAsset asset)
-        {
-            Slot temp = {
-                .key = key,
-                .value = asset
-            };
-            uint32_t slot_index = HashSlotIndex(key);
-
-            while (m_slots[slot_index].key != key &&
-                m_slots[slot_index].key != SLOT_UNUSED)
-            {
-                slot_index++;
-                slot_index %= m_capacity;
-            }
-
-            DX_ASSERT(m_slots[slot_index].key == SLOT_UNUSED && "Collision found in hash map while trying to insert");
-            m_slots[slot_index] = temp;
-            m_size++;
-        }
-
-        void Remove(const char* key)
-        {
-            uint32_t slot_index = HashSlotIndex(key);
-
-            while (m_slots[slot_index].key != SLOT_UNUSED)
-            {
-                if (m_slots[slot_index].key == key)
-                {
-                    Slot* slot = &m_slots[slot_index];
-
-                    if constexpr (!std::is_trivially_destructible_v<TAsset>)
-                    {
-                        slot->value.~TAsset();
-                    }
-
-                    slot->key = SLOT_UNUSED;
-                    slot->value = {};
-
-                    m_size--;
-                    break;
-                }
-
-                slot_index++;
-                slot_index %= m_capacity;
-            }
-        }
-
-        TAsset* Find(const char* key)
-        {
-            TAsset* value = nullptr;
-            uint32_t slot_index = HashSlotIndex(key);
-            uint32_t counter = 0;
-
-            while (m_slots[slot_index].key != SLOT_UNUSED)
-            {
-                if (counter++ > m_capacity)
-                {
-                    break;
-                }
-
-                if (m_slots[slot_index].key == key)
-                {
-                    value = &m_slots[slot_index].value;
-                    break;
-                }
-
-                slot_index++;
-                slot_index %= m_capacity;
-            }
-
-            return value;
-        }
-
-    private:
-        uint32_t HashSlotIndex(const char* key)
-        {
-            return Hash::DJB2(key, strlen(key)) % m_capacity;
-        }
-
-    private:
-        struct Slot
-        {
-            const char* key;
-            TAsset value;
-        };
-
-        Allocator* m_allocator;
-        size_t m_capacity;
-        size_t m_size;
-
-        Slot* m_slots;
-
-    };
-
     struct InternalData
     {
-        Allocator allocator;
+        LinearAllocator allocator;
 
-        AssetHashmap<ResourceHandle>* texture_assets_map;
-        AssetHashmap<Model>* model_assets_map;
+        Hashmap<const char*, ResourceHandle>* texture_assets_map;
+        Hashmap<const char*, Model>* model_assets_map;
     } static data;
 
     void Init()
     {
-        data.texture_assets_map = data.allocator.AllocateConstruct<AssetHashmap<ResourceHandle>>(&data.allocator, 1024);
-        data.model_assets_map = data.allocator.AllocateConstruct<AssetHashmap<Model>>(&data.allocator, 1024);
+        data.texture_assets_map = data.allocator.AllocateConstruct<Hashmap<const char*, ResourceHandle>>(&data.allocator, 1024);
+        data.model_assets_map = data.allocator.AllocateConstruct<Hashmap<const char*, Model>>(&data.allocator, 64);
     }
 
     void Exit()
@@ -366,6 +234,7 @@ namespace AssetManager
             }
         }
 
+        // TODO: GLTF Scenes
         for (uint32_t node_idx = 0; node_idx < cgltf_data->nodes_count; ++node_idx)
         {
             cgltf_node* cgltf_node = &cgltf_data->nodes[node_idx];

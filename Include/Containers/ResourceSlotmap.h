@@ -1,5 +1,4 @@
 #pragma once
-#include "Allocator.h"
 
 struct ResourceHandle
 {
@@ -26,7 +25,7 @@ public:
 	static constexpr uint32_t SLOT_OCCUPIED = 0xFFFFFFFF;
 
 public:
-	ResourceSlotmap(Allocator* alloc, size_t capacity = DX_RESOURCE_SLOTMAP_DEFAULT_CAPACITY)
+	ResourceSlotmap(LinearAllocator* alloc, size_t capacity = DX_RESOURCE_SLOTMAP_DEFAULT_CAPACITY)
 		: m_allocator(alloc), m_capacity(capacity)
 	{
 		// Allocate from the given allocator
@@ -140,7 +139,7 @@ private:
 		TResource resource;
 	};
 
-	Allocator* m_allocator;
+	LinearAllocator* m_allocator;
 	Slot* m_slots;
 	size_t m_capacity;
 
