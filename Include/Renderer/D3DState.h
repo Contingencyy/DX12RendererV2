@@ -64,7 +64,6 @@ struct D3DState
 #define DX_DESCRIPTOR_HEAP_SIZE_RTV 3
 #define DX_DESCRIPTOR_HEAP_SIZE_DSV 1
 #define DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV 1024
-#define DX_TIMESTAMP_HEAP_MAX_QUERIES_PER_FRAME 64
 
 	// Adapter and device
 	IDXGIAdapter4* adapter;
@@ -97,9 +96,9 @@ struct D3DState
 	uint32_t render_height;
 	uint64_t frame_index;
 
-	// Command queue, list and allocator
-	uint64_t fence_value;
-	ID3D12Fence* fence;
+	// Fences
+	ID3D12Fence* frame_fence;
+	uint64_t frame_fence_value;
 
 	// Descriptor heaps
 	ID3D12DescriptorHeap* descriptor_heap_rtv;

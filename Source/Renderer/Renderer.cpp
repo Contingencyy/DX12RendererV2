@@ -162,15 +162,20 @@ namespace Renderer
 		}
 #endif
 
-		// Create the command queue for the swap chain
-		d3d_state.swapchain_command_queue = DX12::CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
-
 		// Create the swap chain
 		BOOL allow_tearing = FALSE;
 		DX_FAILED_HR(dxgi_factory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow_tearing, sizeof(BOOL)))
 		{
 			d3d_state.tearing_supported = (allow_tearing == TRUE);
 		}
+
+		// Check feature support for required features
+		D3D12_FEATURE_DATA_D3D12_OPTIONS12 feature_options12 = {};
+		d3d_state.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &feature_options12, sizeof(feature_options12));
+		DX_ASSERT(feature_options12.EnhancedBarriersSupported && "DirectX 12 Enhanced barriers are not supported");
+
+		// Create the command queue for the swap chain
+		d3d_state.swapchain_command_queue = DX12::CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
 
 		DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
 		swap_chain_desc.Width = params.width;
@@ -225,7 +230,7 @@ namespace Renderer
 
 			d3d_state.device->CreateRenderTargetView(frame_ctx->back_buffer, &rtv_desc, rtv_handle);
 		}
-		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.fence)), "Failed to create fence");
+		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.frame_fence)), "Failed to create fence");
 
 		// Create depth buffer
 		D3D12_CLEAR_VALUE clear_value = {};
@@ -371,7 +376,7 @@ namespace Renderer
 
 	void Flush()
 	{
-		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, d3d_state.fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.frame_fence, d3d_state.frame_fence_value);
 	}
 
 	void BeginFrame(const Mat4x4& view, const Mat4x4& projection)
@@ -384,7 +389,7 @@ namespace Renderer
 		// Some examples on the internet wait right after presenting, which is not ideal
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
-		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, frame_ctx->back_buffer_fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.frame_fence, frame_ctx->back_buffer_fence_value);
 
 		d3d_state.scene_cb_ptr->view = view;
 		d3d_state.scene_cb_ptr->projection = projection;
@@ -441,13 +446,14 @@ namespace Renderer
 		cmd_list->RSSetScissorRects(1, &scissor_rect);
 		cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
 
-		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.root_sig);
-		cmd_list->SetPipelineState(d3d_state.default_raster_pipeline.pipeline_state);
-		cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
+		// NOTE: Before binding the root signature, we need to bind the descriptor heap
 		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav };
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heaps);
-		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.root_sig);
+		cmd_list->SetPipelineState(d3d_state.default_raster_pipeline.pipeline_state);
+
+		cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
 		cmd_list->IASetVertexBuffers(1, 1, &frame_ctx->instance_vbv);
 
@@ -492,8 +498,8 @@ namespace Renderer
 		// ----------------------------------------------------------------------------------
 		// Signal the GPU with the fence value for the current frame, and set the current back buffer index to the next one
 
-		frame_ctx->back_buffer_fence_value = ++d3d_state.fence_value;
-		d3d_state.swapchain_command_queue->Signal(d3d_state.fence, frame_ctx->back_buffer_fence_value);
+		frame_ctx->back_buffer_fence_value = ++d3d_state.frame_fence_value;
+		DX12::SignalCommandQueue(d3d_state.swapchain_command_queue, d3d_state.frame_fence, frame_ctx->back_buffer_fence_value);
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
 		// ----------------------------------------------------------------------------------
@@ -575,8 +581,9 @@ namespace Renderer
 		DX12::ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
 		cmd_list->Reset(frame_ctx->command_allocator, nullptr);
 
-		uint64_t fence_value = ++d3d_state.fence_value;
-		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
+		uint64_t fence_value = ++d3d_state.frame_fence_value;
+		DX12::SignalCommandQueue(d3d_state.swapchain_command_queue, d3d_state.frame_fence, fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.frame_fence, fence_value);
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
 		srv_desc.Format = resource->GetDesc().Format;
@@ -625,8 +632,9 @@ namespace Renderer
 		DX12::ExecuteCommandList(d3d_state.swapchain_command_queue, cmd_list);
 		cmd_list->Reset(frame_ctx->command_allocator, nullptr);
 
-		uint64_t fence_value = ++d3d_state.fence_value;
-		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.fence, fence_value);
+		uint64_t fence_value = ++d3d_state.frame_fence_value;
+		DX12::SignalCommandQueue(d3d_state.swapchain_command_queue, d3d_state.frame_fence, fence_value);
+		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.frame_fence, fence_value);
 
 		MeshResource mesh_resource = {};
 		mesh_resource.vertex_buffer = vertex_buffer;

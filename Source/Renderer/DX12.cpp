@@ -309,17 +309,20 @@ namespace DX12
 		cmd_queue->ExecuteCommandLists(1, command_lists);
 	}
 
-	void WaitOnFence(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value)
+	void SignalCommandQueue(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value)
 	{
 		cmd_queue->Signal(fence, fence_value);
+	}
 
+	void WaitOnFence(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value)
+	{
 		if (fence->GetCompletedValue() < fence_value)
 		{
 			HANDLE fence_event = ::CreateEvent(NULL, FALSE, FALSE, NULL);
 			DX_ASSERT(fence_event && "Failed to create fence event handle");
 
-			DX_CHECK_HR(d3d_state.fence->SetEventOnCompletion(fence_value, fence_event));
-			::WaitForSingleObject(fence_event, (DWORD)UINT32_MAX);
+			DX_CHECK_HR(d3d_state.frame_fence->SetEventOnCompletion(fence_value, fence_event));
+			::WaitForSingleObjectEx(fence_event, UINT32_MAX, FALSE);
 
 			::CloseHandle(fence_event);
 		}

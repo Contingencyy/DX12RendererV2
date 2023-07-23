@@ -36,6 +36,7 @@ namespace DX12
 	// Executing command lists, waiting for fence
 
 	void ExecuteCommandList(ID3D12CommandQueue* cmd_queue, ID3D12GraphicsCommandList6* cmd_list);
+	void SignalCommandQueue(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value);
 	void WaitOnFence(ID3D12CommandQueue* cmd_queue, ID3D12Fence* fence, uint64_t fence_value);
 
 }
