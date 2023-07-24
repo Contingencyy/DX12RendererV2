@@ -3,9 +3,6 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
-# Temp (Sponza PBR)
-SponzaPBR/
-
 # User-specific files
 *.rsuser
 *.suo
@@ -399,3 +396,9 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Temp (Sponza PBR)
+SponzaPBR/
+
+# Exclude extern folder since we might want to have dlls, libs, and pdbs for those libraries in there
+!Extern/**
