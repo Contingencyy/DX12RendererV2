@@ -195,6 +195,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Source\Renderer\DescriptorHeap.cpp" />
     <ClCompile Include="Source\Renderer\DX12.cpp" />
     <ClCompile Include="Source\Renderer\Renderer.cpp" />
     <ClCompile Include="Source\Scene.cpp" />
@@ -214,6 +215,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     <ClInclude Include="Include\Input.h" />
     <ClInclude Include="Include\Pch.h" />
     <ClInclude Include="Include\Renderer\D3DState.h" />
+    <ClInclude Include="Include\Renderer\DescriptorHeap.h" />
     <ClInclude Include="Include\Renderer\DX12.h" />
     <ClInclude Include="Include\Renderer\Renderer.h" />
     <ClInclude Include="Include\Shaders\Shared.hlsl.h" />

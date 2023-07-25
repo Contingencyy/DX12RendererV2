@@ -1,5 +1,6 @@
 #pragma once
 #include "Shaders/Shared.hlsl.h"
+#include "Renderer/DescriptorHeap.h"
 
 // TODO: Should add HR error explanation to these macros as well
 #define DX_CHECK_HR_ERR(hr, error) \
@@ -45,6 +46,26 @@ if ((object)) \
 (object) = nullptr
 #endif
 
+enum ReservedDescriptorRTV : uint32_t
+{
+	ReservedDescriptorRTV_BackBuffer0,
+	ReservedDescriptorRTV_BackBuffer1,
+	ReservedDescriptorRTV_BackBuffer2,
+	ReservedDescriptorRTV_Count
+};
+
+enum ReservedDescriptorDSV : uint32_t
+{
+	ReservedDescriptorDSV_DepthBuffer,
+	ReservedDescriptorDSV_Count
+};
+
+enum ReservedDescriptorCBVSRVUAV : uint32_t
+{
+	ReservedDescriptorCBVSRVUAV_DearImGui,
+	ReservedDescriptorCBVSRVUAV_Count
+};
+
 struct RasterPipeline
 {
 	ID3D12RootSignature* root_sig;
@@ -61,8 +82,8 @@ struct D3DState
 {
 
 #define DX_BACK_BUFFER_COUNT 3
-#define DX_DESCRIPTOR_HEAP_SIZE_RTV 3
-#define DX_DESCRIPTOR_HEAP_SIZE_DSV 1
+#define DX_DESCRIPTOR_HEAP_SIZE_RTV 128
+#define DX_DESCRIPTOR_HEAP_SIZE_DSV 32
 #define DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV 1024
 
 	// Adapter and device
@@ -101,10 +122,14 @@ struct D3DState
 	uint64_t frame_fence_value;
 
 	// Descriptor heaps
-	ID3D12DescriptorHeap* descriptor_heap_rtv;
-	ID3D12DescriptorHeap* descriptor_heap_dsv;
-	ID3D12DescriptorHeap* descriptor_heap_cbv_srv_uav;
-	uint32_t cbv_srv_uav_current_index;
+	DescriptorHeap descriptor_heap_rtv;
+	DescriptorHeap descriptor_heap_dsv;
+	DescriptorHeap descriptor_heap_cbv_srv_uav;
+
+	// Descriptor allocations
+	DescriptorAllocation reserved_rtvs;
+	DescriptorAllocation reserved_dsvs;
+	DescriptorAllocation reserved_cbv_srv_uavs;
 
 	// DXC shader compiler
 	IDxcCompiler* dxc_compiler;

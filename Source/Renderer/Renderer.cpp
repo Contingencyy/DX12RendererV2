@@ -19,17 +19,10 @@ namespace Renderer
 
 #define MAX_RENDER_MESHES 1000
 
-	enum ReservedDescriptor : uint32_t
-	{
-		ReservedDescriptor_DearImGui,
-		ReservedDescriptor_Count
-	};
-
 	struct TextureResource
 	{
 		ID3D12Resource* resource;
-		D3D12_CPU_DESCRIPTOR_HANDLE srv_cpu;
-		D3D12_GPU_DESCRIPTOR_HANDLE srv_gpu;
+		DescriptorAllocation srv;
 	};
 
 	struct MeshResource
@@ -197,10 +190,14 @@ namespace Renderer
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
 		// Create descriptor heaps
-		d3d_state.descriptor_heap_rtv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
-		d3d_state.descriptor_heap_dsv = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
-		d3d_state.descriptor_heap_cbv_srv_uav = DX12::CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
-		d3d_state.cbv_srv_uav_current_index = ReservedDescriptor_Count;
+		d3d_state.descriptor_heap_rtv = DescriptorHeap(&data.allocator, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
+		d3d_state.descriptor_heap_dsv = DescriptorHeap(&data.allocator, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
+		d3d_state.descriptor_heap_cbv_srv_uav = DescriptorHeap(&data.allocator, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV);
+
+		// Allocate reserved descriptors
+		d3d_state.reserved_rtvs = d3d_state.descriptor_heap_rtv.Allocate(ReservedDescriptorRTV_Count);
+		d3d_state.reserved_dsvs = d3d_state.descriptor_heap_dsv.Allocate(ReservedDescriptorDSV_Count);
+		d3d_state.reserved_cbv_srv_uavs = d3d_state.descriptor_heap_cbv_srv_uav.Allocate(ReservedDescriptorCBVSRVUAV_Count);
 
 		// Create command queue, list, and allocator
 		//d3d_state.command_queue_direct = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
@@ -220,9 +217,8 @@ namespace Renderer
 			frame_ctx->instance_vbv.StrideInBytes = sizeof(InstanceData);
 			frame_ctx->instance_vbv.SizeInBytes = frame_ctx->instance_vbv.StrideInBytes * MAX_RENDER_MESHES;
 
-			uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-			D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + back_buffer_idx * rtv_increment_size };
-			DX12::CreateTextureRTV(frame_ctx->back_buffer, rtv_handle, DXGI_FORMAT_R8G8B8A8_UNORM);
+			DX12::CreateTextureRTV(frame_ctx->back_buffer, d3d_state.reserved_rtvs.GetCPUHandle(
+				ReservedDescriptorRTV_BackBuffer0 + back_buffer_idx), DXGI_FORMAT_R8G8B8A8_UNORM);
 		}
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.frame_fence)), "Failed to create fence");
 
@@ -234,8 +230,7 @@ namespace Renderer
 		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
 			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
-		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
-		DX12::CreateTextureDSV(d3d_state.depth_buffer, dsv_handle, DXGI_FORMAT_D32_FLOAT);
+		DX12::CreateTextureDSV(d3d_state.depth_buffer, d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer), DXGI_FORMAT_D32_FLOAT);
 
 		// Create the DXC compiler state
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
@@ -278,9 +273,8 @@ namespace Renderer
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		ImGui_ImplWin32_Init(hWnd);
-		ImGui_ImplDX12_Init(d3d_state.device, DX_BACK_BUFFER_COUNT, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav,
-			{ d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size },
-			{ d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + ReservedDescriptor_DearImGui * cbv_srv_uav_increment_size });
+		ImGui_ImplDX12_Init(d3d_state.device, DX_BACK_BUFFER_COUNT, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav.GetD3D12DescriptorHeap(),
+			d3d_state.reserved_cbv_srv_uavs.GetCPUHandle(ReservedDescriptorCBVSRVUAV_DearImGui), d3d_state.reserved_cbv_srv_uavs.GetGPUHandle(ReservedDescriptorCBVSRVUAV_DearImGui));
 	}
 
 	static void ResizeBackBuffers()
@@ -308,9 +302,7 @@ namespace Renderer
 			DX_CHECK_HR(d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&frame_ctx->back_buffer)));
 			
 			// Need to create new render target views for the new back buffer resources
-			uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-			D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + back_buffer_idx * rtv_increment_size };
-			DX12::CreateTextureRTV(frame_ctx->back_buffer, rtv_handle, DXGI_FORMAT_R8G8B8A8_UNORM);
+			DX12::CreateTextureRTV(frame_ctx->back_buffer, d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + back_buffer_idx), DXGI_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
@@ -330,8 +322,7 @@ namespace Renderer
 			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
 		// Do not forget to create a new depth stencil view for the depth buffer
-		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
-		DX12::CreateTextureDSV(d3d_state.depth_buffer, dsv_handle, DXGI_FORMAT_D32_FLOAT);
+		DX12::CreateTextureDSV(d3d_state.depth_buffer, d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer), DXGI_FORMAT_D32_FLOAT);
 	}
 
 	void Init(const RendererInitParams& params)
@@ -365,6 +356,13 @@ namespace Renderer
 	void Exit()
 	{
 		Flush();
+
+		// TODO: Release texture/mesh descriptors from the slotmaps
+
+		// Release reserved descriptors
+		d3d_state.descriptor_heap_rtv.Release(d3d_state.reserved_rtvs);
+		d3d_state.descriptor_heap_dsv.Release(d3d_state.reserved_dsvs);
+		d3d_state.descriptor_heap_cbv_srv_uav.Release(d3d_state.reserved_cbv_srv_uavs);
 
 		ImGui_ImplDX12_Shutdown();
 		ImGui_ImplWin32_Shutdown();
@@ -417,8 +415,8 @@ namespace Renderer
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 
 		uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + d3d_state.current_back_buffer_idx * rtv_increment_size };
-		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + d3d_state.current_back_buffer_idx);
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer);
 		ID3D12Resource* back_buffer = frame_ctx->back_buffer;
 		
 		// ----------------------------------------------------------------------------------
@@ -444,7 +442,7 @@ namespace Renderer
 		cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
 
 		// NOTE: Before binding the root signature, we need to bind the descriptor heap
-		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav };
+		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav.GetD3D12DescriptorHeap() };
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heaps);
 
 		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.root_sig);
@@ -516,10 +514,10 @@ namespace Renderer
 			.texture_handle = DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture
 		};
 
+		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		TextureResource* texture_resource = data.texture_slotmap->Find(data.render_mesh_data[data.stats.mesh_count].texture_handle);
-		GetFrameContextCurrent()->instance_buffer_ptr[data.stats.mesh_count].transform = transform;
-		GetFrameContextCurrent()->instance_buffer_ptr[data.stats.mesh_count].base_color_index =
-			(texture_resource->srv_cpu.ptr - d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr) / d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].transform = transform;
+		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].base_color_index = texture_resource->srv.descriptor_heap_index;
 		data.stats.mesh_count++;
 	}
 
@@ -586,13 +584,11 @@ namespace Renderer
 		
 		TextureResource texture_resource = {};
 		texture_resource.resource = resource;
-		texture_resource.srv_cpu = { d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr + d3d_state.cbv_srv_uav_current_index * cbv_srv_uav_increment_size };
-		texture_resource.srv_gpu = { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + d3d_state.cbv_srv_uav_current_index * cbv_srv_uav_increment_size };
+		texture_resource.srv = d3d_state.descriptor_heap_cbv_srv_uav.Allocate();
 		
 		D3D12_RESOURCE_DESC resource_desc = resource->GetDesc();
-		DX12::CreateTextureSRV(resource, texture_resource.srv_cpu, resource_desc.Format);
+		DX12::CreateTextureSRV(resource, texture_resource.srv.cpu, resource_desc.Format);
 
-		d3d_state.cbv_srv_uav_current_index++;
 		return data.texture_slotmap->Insert(texture_resource);
 	}
 
@@ -718,9 +714,10 @@ namespace Renderer
 		ImGui::Render();
 
 		uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		D3D12_CPU_DESCRIPTOR_HANDLE imgui_rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + d3d_state.current_back_buffer_idx * rtv_increment_size };
+		D3D12_CPU_DESCRIPTOR_HANDLE imgui_rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + d3d_state.current_back_buffer_idx);
+		ID3D12DescriptorHeap* descriptor_heap = d3d_state.descriptor_heap_cbv_srv_uav.GetD3D12DescriptorHeap();
 		cmd_list->OMSetRenderTargets(1, &imgui_rtv_handle, FALSE, nullptr);
-		cmd_list->SetDescriptorHeaps(1, &d3d_state.descriptor_heap_cbv_srv_uav);
+		cmd_list->SetDescriptorHeaps(1, &descriptor_heap);
 
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
 	}

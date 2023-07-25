@@ -48,6 +48,20 @@ namespace DX12
 		return descriptor_heap;
 	}
 
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleAtOffset(ID3D12DescriptorHeap* descriptor_heap, uint32_t offset)
+	{
+		size_t descriptor_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(descriptor_heap->GetDesc().Type);
+		return { descriptor_heap->GetCPUDescriptorHandleForHeapStart().ptr + offset * descriptor_increment_size };
+	}
+
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleAtOffset(ID3D12DescriptorHeap* descriptor_heap, uint32_t offset)
+	{
+		DX_ASSERT(descriptor_heap->GetDesc().Flags == D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE &&
+			"Tried to get a GPU descriptor handle from a descriptor heap that is not flagged shader visible");
+		size_t descriptor_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(descriptor_heap->GetDesc().Type);
+		return { descriptor_heap->GetGPUDescriptorHandleForHeapStart().ptr + offset * descriptor_increment_size };
+	}
+
 	ID3D12RootSignature* CreateRootSignature()
 	{
 		D3D12_ROOT_PARAMETER1 root_params[1] = {};

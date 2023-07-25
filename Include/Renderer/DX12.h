@@ -10,6 +10,8 @@ namespace DX12
 
 	ID3D12CommandQueue* CreateCommandQueue(D3D12_COMMAND_LIST_TYPE type, D3D12_COMMAND_QUEUE_PRIORITY priority);
 	ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors, D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleAtOffset(ID3D12DescriptorHeap* descriptor_heap, uint32_t offset);
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleAtOffset(ID3D12DescriptorHeap* descriptor_heap, uint32_t offset);
 
 	// ------------------------------------------------------------------------------------------------
 	// Root signatures, shaders, pipeline states
