@@ -318,6 +318,17 @@ namespace Renderer
 		{
 			D3DState::FrameContext* frame_ctx = GetFrameContext(back_buffer_idx);
 			DX_CHECK_HR(d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&frame_ctx->back_buffer)));
+			
+			// Need to create new render target views for the new back buffer resources
+			uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + back_buffer_idx * rtv_increment_size };
+			D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
+			rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+			rtv_desc.Texture2D.MipSlice = 0;
+			rtv_desc.Texture2D.PlaneSlice = 0;
+
+			d3d_state.device->CreateRenderTargetView(frame_ctx->back_buffer, &rtv_desc, rtv_handle);
 		}
 
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
@@ -335,6 +346,16 @@ namespace Renderer
 		clear_value.DepthStencil.Stencil = 0;
 		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
 			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+
+		// Do not forget to create a new depth stencil view for the depth buffer
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
+		dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
+		dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		dsv_desc.Texture2D.MipSlice = 0;
+		dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
+
+		d3d_state.device->CreateDepthStencilView(d3d_state.depth_buffer, &dsv_desc, dsv_handle);
 	}
 
 	void Init(const RendererInitParams& params)
