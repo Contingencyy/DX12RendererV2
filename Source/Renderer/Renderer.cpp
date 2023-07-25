@@ -222,13 +222,7 @@ namespace Renderer
 
 			uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 			D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + back_buffer_idx * rtv_increment_size };
-			D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
-			rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-			rtv_desc.Texture2D.MipSlice = 0;
-			rtv_desc.Texture2D.PlaneSlice = 0;
-
-			d3d_state.device->CreateRenderTargetView(frame_ctx->back_buffer, &rtv_desc, rtv_handle);
+			DX12::CreateTextureRTV(frame_ctx->back_buffer, rtv_handle, DXGI_FORMAT_R8G8B8A8_UNORM);
 		}
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.frame_fence)), "Failed to create fence");
 
@@ -241,13 +235,7 @@ namespace Renderer
 			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
 		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
-		dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
-		dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-		dsv_desc.Texture2D.MipSlice = 0;
-		dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
-
-		d3d_state.device->CreateDepthStencilView(d3d_state.depth_buffer, &dsv_desc, dsv_handle);
+		DX12::CreateTextureDSV(d3d_state.depth_buffer, dsv_handle, DXGI_FORMAT_D32_FLOAT);
 
 		// Create the DXC compiler state
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
@@ -322,13 +310,7 @@ namespace Renderer
 			// Need to create new render target views for the new back buffer resources
 			uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 			D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = { d3d_state.descriptor_heap_rtv->GetCPUDescriptorHandleForHeapStart().ptr + back_buffer_idx * rtv_increment_size };
-			D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
-			rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-			rtv_desc.Texture2D.MipSlice = 0;
-			rtv_desc.Texture2D.PlaneSlice = 0;
-
-			d3d_state.device->CreateRenderTargetView(frame_ctx->back_buffer, &rtv_desc, rtv_handle);
+			DX12::CreateTextureRTV(frame_ctx->back_buffer, rtv_handle, DXGI_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
@@ -349,13 +331,7 @@ namespace Renderer
 
 		// Do not forget to create a new depth stencil view for the depth buffer
 		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.descriptor_heap_dsv->GetCPUDescriptorHandleForHeapStart();
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
-		dsv_desc.Format = DXGI_FORMAT_D32_FLOAT;
-		dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-		dsv_desc.Texture2D.MipSlice = 0;
-		dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
-
-		d3d_state.device->CreateDepthStencilView(d3d_state.depth_buffer, &dsv_desc, dsv_handle);
+		DX12::CreateTextureDSV(d3d_state.depth_buffer, dsv_handle, DXGI_FORMAT_D32_FLOAT);
 	}
 
 	void Init(const RendererInitParams& params)
@@ -606,22 +582,15 @@ namespace Renderer
 		DX12::SignalCommandQueue(d3d_state.swapchain_command_queue, d3d_state.frame_fence, fence_value);
 		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.frame_fence, fence_value);
 
-		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
-		srv_desc.Format = resource->GetDesc().Format;
-		srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srv_desc.Texture2D.MipLevels = 1;
-		srv_desc.Texture2D.MostDetailedMip = 0;
-		srv_desc.Texture2D.PlaneSlice = 0;
-		srv_desc.Texture2D.ResourceMinLODClamp = 0;
-
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		
 		TextureResource texture_resource = {};
 		texture_resource.resource = resource;
 		texture_resource.srv_cpu = { d3d_state.descriptor_heap_cbv_srv_uav->GetCPUDescriptorHandleForHeapStart().ptr + d3d_state.cbv_srv_uav_current_index * cbv_srv_uav_increment_size };
 		texture_resource.srv_gpu = { d3d_state.descriptor_heap_cbv_srv_uav->GetGPUDescriptorHandleForHeapStart().ptr + d3d_state.cbv_srv_uav_current_index * cbv_srv_uav_increment_size };
-		d3d_state.device->CreateShaderResourceView(resource, &srv_desc, texture_resource.srv_cpu);
+		
+		D3D12_RESOURCE_DESC resource_desc = resource->GetDesc();
+		DX12::CreateTextureSRV(resource, texture_resource.srv_cpu, resource_desc.Format);
 
 		d3d_state.cbv_srv_uav_current_index++;
 		return data.texture_slotmap->Insert(texture_resource);

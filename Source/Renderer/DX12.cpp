@@ -289,6 +289,119 @@ namespace DX12
 		return texture;
 	}
 
+	void CreateBufferCBV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle)
+	{
+		D3D12_RESOURCE_DESC resource_desc = resource->GetDesc();
+		uint64_t resource_byte_size = 0;
+		d3d_state.device->GetCopyableFootprints(&resource_desc, 0, 1,
+			0, nullptr, nullptr, nullptr, &resource_byte_size);
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc = {};
+		cbv_desc.BufferLocation = resource->GetGPUVirtualAddress();
+		cbv_desc.SizeInBytes = resource_byte_size;
+
+		d3d_state.device->CreateConstantBufferView(&cbv_desc, descriptor_handle);
+	}
+
+	void CreateBufferSRV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, uint32_t num_elements, uint64_t first_element, uint32_t byte_stride)
+	{
+		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+		srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srv_desc.Buffer.NumElements = num_elements;
+		srv_desc.Buffer.FirstElement = first_element;
+		srv_desc.Buffer.StructureByteStride = byte_stride;
+
+		// Create view for a ByteAddressBuffer
+		if (byte_stride == 0)
+		{
+			srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+			srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+		}
+		// Create view for a StructuredBuffer
+		else
+		{
+			srv_desc.Format = DXGI_FORMAT_UNKNOWN;
+			srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+		}
+
+		d3d_state.device->CreateShaderResourceView(resource, &srv_desc, descriptor_handle);
+	}
+
+	void CreateBufferUAV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, uint32_t num_elements, uint64_t first_element, uint32_t byte_stride)
+	{
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+		uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		uav_desc.Buffer.NumElements = num_elements;
+		uav_desc.Buffer.FirstElement = first_element;
+		uav_desc.Buffer.StructureByteStride = byte_stride;
+		uav_desc.Buffer.CounterOffsetInBytes = 0;
+
+		// Create view for a ByteAddressBuffer
+		if (byte_stride == 0)
+		{
+			uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+			uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+		}
+		// Create view for a StructuredBuffer
+		else
+		{
+			uav_desc.Format = DXGI_FORMAT_UNKNOWN;
+			uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+		}
+
+		d3d_state.device->CreateUnorderedAccessView(resource, nullptr, &uav_desc, descriptor_handle);
+	}
+
+	void CreateTextureSRV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format, uint32_t num_mips, uint32_t mip_bias)
+	{
+		D3D12_RESOURCE_DESC resource_desc = resource->GetDesc();
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+		srv_desc.Format = format;
+		// TODO: Support other view dims once required
+		srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srv_desc.Texture2D.MipLevels = num_mips == UINT32_MAX ? resource_desc.MipLevels : num_mips;
+		srv_desc.Texture2D.MostDetailedMip = mip_bias;
+		srv_desc.Texture2D.PlaneSlice = 0;
+		srv_desc.Texture2D.ResourceMinLODClamp = 0;
+
+		d3d_state.device->CreateShaderResourceView(resource, &srv_desc, descriptor_handle);
+	}
+	
+	void CreateTextureUAV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format)
+	{
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+		uav_desc.Format = format;
+		uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		uav_desc.Texture2D.MipSlice = 0;
+		uav_desc.Texture2D.PlaneSlice = 0;
+
+		d3d_state.device->CreateUnorderedAccessView(resource, nullptr, &uav_desc, descriptor_handle);
+	}
+
+	void CreateTextureRTV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format)
+	{
+		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
+		rtv_desc.Format = format;
+		rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		rtv_desc.Texture2D.MipSlice = 0;
+		rtv_desc.Texture2D.PlaneSlice = 0;
+
+		d3d_state.device->CreateRenderTargetView(resource, &rtv_desc, descriptor_handle);
+	}
+
+	void CreateTextureDSV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format)
+	{
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
+		dsv_desc.Format = format;
+		dsv_desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		dsv_desc.Texture2D.MipSlice = 0;
+		dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
+
+		d3d_state.device->CreateDepthStencilView(resource, &dsv_desc, descriptor_handle);
+	}
+
 	D3D12_RESOURCE_BARRIER TransitionBarrier(ID3D12Resource* resource, D3D12_RESOURCE_STATES state_before, D3D12_RESOURCE_STATES state_after)
 	{
 		D3D12_RESOURCE_BARRIER barrier = {};

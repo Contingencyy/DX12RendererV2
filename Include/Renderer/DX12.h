@@ -30,6 +30,20 @@ namespace DX12
 	ID3D12Resource* CreateTexture(const wchar_t* name, DXGI_FORMAT format, uint32_t width, uint32_t height, const D3D12_CLEAR_VALUE* clear_value = nullptr,
 		D3D12_RESOURCE_STATES initial_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 
+	// ------------------------------------------------------------------------------------------------
+	// Resource views
+
+	void CreateBufferCBV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle);
+	void CreateBufferSRV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, uint32_t num_elements, uint64_t first_element, uint32_t byte_stride);
+	void CreateBufferUAV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, uint32_t num_elements, uint64_t first_element, uint32_t byte_stride);
+	void CreateTextureSRV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format, uint32_t num_mips = UINT32_MAX, uint32_t mip_bias = 0);
+	void CreateTextureUAV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format);
+	void CreateTextureRTV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format);
+	void CreateTextureDSV(ID3D12Resource* resource, D3D12_CPU_DESCRIPTOR_HANDLE descriptor_handle, DXGI_FORMAT format);
+
+	// ------------------------------------------------------------------------------------------------
+	// Barriers
+
 	D3D12_RESOURCE_BARRIER TransitionBarrier(ID3D12Resource* resource, D3D12_RESOURCE_STATES state_before, D3D12_RESOURCE_STATES state_after);
 
 	// ------------------------------------------------------------------------------------------------
