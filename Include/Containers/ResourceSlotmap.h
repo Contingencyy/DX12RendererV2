@@ -25,7 +25,7 @@ public:
 	static constexpr uint32_t SLOT_OCCUPIED = 0xFFFFFFFF;
 
 public:
-	ResourceSlotmap(LinearAllocator* alloc, size_t capacity = DX_RESOURCE_SLOTMAP_DEFAULT_CAPACITY)
+	ResourceSlotmap(MemoryScope* alloc, size_t capacity = DX_RESOURCE_SLOTMAP_DEFAULT_CAPACITY)
 		: m_allocator(alloc), m_capacity(capacity)
 	{
 		// Allocate from the given allocator
@@ -35,22 +35,6 @@ public:
 		{
 			m_slots[slot].next_free = (uint32_t)slot + 1;
 			m_slots[slot].gen = 0;
-		}
-	}
-
-	~ResourceSlotmap()
-	{
-		if constexpr (!std::is_trivially_destructible_v<TResource>)
-		{
-			for (size_t i = 0; i < m_capacity; ++i)
-			{
-				Slot* slot = &m_slots[i];
-				
-				if (slot->next_free == SLOT_OCCUPIED)
-				{
-					slot->resource.~TResource();
-				}
-			}
 		}
 	}
 
@@ -139,7 +123,7 @@ private:
 		TResource resource;
 	};
 
-	LinearAllocator* m_allocator;
+	MemoryScope* m_allocator;
 	Slot* m_slots;
 	size_t m_capacity;
 

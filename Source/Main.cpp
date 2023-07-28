@@ -8,7 +8,7 @@ int main(int argc, char* argv[])
 	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
 	// We use a double loop here to allow the application to be restarted if necessary instead of closing entirely
-	while (!Application::ShouldClose())
+	while (!Application::ShouldExit())
 	{
 		Application::Init();
 		Application::Run();

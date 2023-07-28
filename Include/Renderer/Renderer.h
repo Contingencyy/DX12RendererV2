@@ -6,6 +6,7 @@ namespace Renderer
 
 	struct RendererInitParams
 	{
+		LinearAllocator* alloc;
 		HWND hWnd;
 		uint32_t width;
 		uint32_t height;

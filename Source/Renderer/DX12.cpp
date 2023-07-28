@@ -12,7 +12,7 @@ namespace DX12
 			return nullptr;
 
 		int dst_len = MultiByteToWideChar(CP_UTF8, 0, utf8, (int)src_len, NULL, 0);
-		wchar_t* utf16 = alloc->Allocate<wchar_t>(dst_len + 1);
+		wchar_t* utf16 = (wchar_t*)alloc->Allocate(sizeof(wchar_t) * (dst_len + 1), alignof(wchar_t));
 
 		MultiByteToWideChar(CP_UTF8, 0, utf8, (int)src_len, (wchar_t*)utf16, dst_len);
 		utf16[dst_len] = 0;

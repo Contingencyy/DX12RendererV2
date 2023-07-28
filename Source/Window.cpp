@@ -2,6 +2,7 @@
 #include "Window.h"
 #include "Input.h"
 #include "Renderer/Renderer.h"
+#include "Application.h"
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -117,6 +118,7 @@ namespace Window
 
 	void Destroy()
 	{
+		DestroyWindow(data.hWnd);
 	}
 
 	void SetMouseCapture(bool capture)

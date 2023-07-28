@@ -76,7 +76,7 @@ static Mat4x4 CGLTFNodeGetTransform(const cgltf_node* node)
 
 static char* CreatePathFromUri(const char* filepath, const char* uri)
 {
-    char* result = g_thread_alloc.Allocate<char>(strlen(filepath) + strlen(uri));
+    char* result = (char*)g_thread_alloc.Allocate(strlen(filepath) + strlen(uri), alignof(char));
 
     cgltf_combine_paths(result, filepath, uri);
     cgltf_decode_uri(result + strlen(result) - strlen(uri));
@@ -89,20 +89,23 @@ namespace AssetManager
 
     struct InternalData
     {
-        LinearAllocator allocator;
+        MemoryScope allocator_scope;
 
         Hashmap<const char*, ResourceHandle>* texture_assets_map;
         Hashmap<const char*, Model>* model_assets_map;
     } static data;
 
-    void Init()
+    void Init(LinearAllocator* alloc)
     {
-        data.texture_assets_map = data.allocator.AllocateConstruct<Hashmap<const char*, ResourceHandle>>(&data.allocator, 1024);
-        data.model_assets_map = data.allocator.AllocateConstruct<Hashmap<const char*, Model>>(&data.allocator, 64);
+        data.allocator_scope = MemoryScope(alloc, alloc->at_ptr);
+
+        data.texture_assets_map = data.allocator_scope.AllocateConstruct<Hashmap<const char*, ResourceHandle>>(&data.allocator_scope, 1024);
+        data.model_assets_map = data.allocator_scope.AllocateConstruct<Hashmap<const char*, Model>>(&data.allocator_scope, 64);
     }
 
     void Exit()
     {
+        data.allocator_scope.~MemoryScope();
     }
 
 	void LoadTexture(const char* filepath)
@@ -133,13 +136,14 @@ namespace AssetManager
 
         Model model = {};
         model.name = filepath;
-        model.nodes = data.allocator.Allocate<Model::Node>(cgltf_data->nodes_count);
+        model.nodes = data.allocator_scope.Allocate<Model::Node>(cgltf_data->nodes_count);
         model.num_nodes = cgltf_data->nodes_count;
 
         // -------------------------------------------------------------------------------
         // Parse the CGLTF data - Materials and textures
         
-        ResourceHandle* texture_handles = g_thread_alloc.Allocate<ResourceHandle>(cgltf_data->materials_count);
+        MemoryScope alloc_scope(&g_thread_alloc, g_thread_alloc.at_ptr);
+        ResourceHandle* texture_handles = alloc_scope.Allocate<ResourceHandle>(cgltf_data->materials_count);
 
         for (uint32_t img_idx = 0; img_idx < cgltf_data->images_count; ++img_idx)
         {
@@ -161,7 +165,7 @@ namespace AssetManager
         }
 
         // Allocate all the mesh resource handles we need
-        ResourceHandle* mesh_handles = g_thread_alloc.Allocate<ResourceHandle>(num_meshes);
+        ResourceHandle* mesh_handles = alloc_scope.Allocate<ResourceHandle>(num_meshes);
         size_t mesh_handle_cur = 0;
 
         for (uint32_t mesh_idx = 0; mesh_idx < cgltf_data->meshes_count; ++mesh_idx)
@@ -178,7 +182,7 @@ namespace AssetManager
                 // Load all of the index data for the current primitive
 
                 upload_mesh_params.num_indices = primitive->indices->count;
-                upload_mesh_params.indices = g_thread_alloc.Allocate<uint32_t>(primitive->indices->count);
+                upload_mesh_params.indices = alloc_scope.Allocate<uint32_t>(primitive->indices->count);
 
                 if (primitive->indices->component_type == cgltf_component_type_r_32u)
                 {
@@ -199,7 +203,7 @@ namespace AssetManager
                 // Load all of the vertex data for the current primitive
 
                 upload_mesh_params.num_vertices = primitive->attributes[0].data->count;
-                upload_mesh_params.vertices = g_thread_alloc.Allocate<Renderer::Vertex>(primitive->attributes[0].data->count);
+                upload_mesh_params.vertices = alloc_scope.Allocate<Renderer::Vertex>(primitive->attributes[0].data->count);
 
                 for (uint32_t attrib_idx = 0; attrib_idx < primitive->attributes_count; ++attrib_idx)
                 {
@@ -241,7 +245,7 @@ namespace AssetManager
             Model::Node* node = &model.nodes[node_idx];
             node->transform = cgltf_node->mesh ? CGLTFNodeGetTransform(cgltf_node) : Mat4x4Identity();
             node->num_children = cgltf_node->children_count;
-            node->children = data.allocator.Allocate<size_t>(cgltf_node->children_count);
+            node->children = data.allocator_scope.Allocate<size_t>(cgltf_node->children_count);
 
             for (uint32_t child_idx = 0; child_idx < cgltf_node->children_count; ++child_idx)
             {
@@ -251,8 +255,8 @@ namespace AssetManager
             if (cgltf_node->mesh)
             {
                 node->num_meshes = cgltf_node->mesh->primitives_count;
-                node->mesh_handles = data.allocator.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
-                node->texture_handles = data.allocator.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
+                node->mesh_handles = data.allocator_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
+                node->texture_handles = data.allocator_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
 
                 for (uint32_t prim_idx = 0; prim_idx < cgltf_node->mesh->primitives_count; ++prim_idx)
                 {
@@ -279,7 +283,7 @@ namespace AssetManager
         }
 
         size_t root_node_cur = 0;
-        model.root_nodes = data.allocator.Allocate<size_t>(model.num_root_nodes);
+        model.root_nodes = data.allocator_scope.Allocate<size_t>(model.num_root_nodes);
 
         for (uint32_t node_idx = 0; node_idx < cgltf_data->nodes_count; ++node_idx)
         {

@@ -7,7 +7,7 @@ public:
     static constexpr const char* SLOT_UNUSED = "";
 
 public:
-    Hashmap(LinearAllocator* alloc, size_t capacity = 1024)
+    Hashmap(MemoryScope* alloc, size_t capacity = 1024)
         : m_allocator(alloc), m_capacity(capacity), m_size(0)
     {
         m_slots = m_allocator->Allocate<Node>(m_capacity);
@@ -15,22 +15,6 @@ public:
         for (uint32_t i = 0; i < m_capacity; ++i)
         {
             m_slots[i].key = SLOT_UNUSED;
-        }
-    }
-
-    ~Hashmap()
-    {
-        if constexpr (!std::is_trivially_destructible_v<TValue>)
-        {
-            for (size_t i = 0; i < m_capacity; ++i)
-            {
-                Node* slot = &m_slots[i];
-
-                if (slot->key != SLOT_UNUSED)
-                {
-                    slot->value.~TValue();
-                }
-            }
         }
     }
 
@@ -127,7 +111,7 @@ private:
         TValue value;
     };
 
-    LinearAllocator* m_allocator;
+    MemoryScope* m_allocator;
     size_t m_capacity;
     size_t m_size;
 

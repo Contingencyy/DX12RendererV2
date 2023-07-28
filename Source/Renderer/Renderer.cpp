@@ -41,7 +41,7 @@ namespace Renderer
 
 	struct InternalData
 	{
-		LinearAllocator allocator;
+		MemoryScope allocator_scope;
 
 		ResourceSlotmap<MeshResource>* mesh_slotmap;
 		ResourceSlotmap<TextureResource>* texture_slotmap;
@@ -190,20 +190,21 @@ namespace Renderer
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
 		// Create descriptor heaps
-		d3d_state.descriptor_heap_rtv = DescriptorHeap(&data.allocator, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
-		d3d_state.descriptor_heap_dsv = DescriptorHeap(&data.allocator, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
-		d3d_state.descriptor_heap_cbv_srv_uav = DescriptorHeap(&data.allocator, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV);
+		d3d_state.descriptor_heap_rtv = data.allocator_scope.AllocateConstruct<DescriptorHeap>(&data.allocator_scope, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
+		d3d_state.descriptor_heap_dsv = data.allocator_scope.AllocateConstruct<DescriptorHeap>(&data.allocator_scope, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
+		d3d_state.descriptor_heap_cbv_srv_uav = data.allocator_scope.AllocateConstruct<DescriptorHeap>(&data.allocator_scope, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV);
 
 		// Allocate reserved descriptors
-		d3d_state.reserved_rtvs = d3d_state.descriptor_heap_rtv.Allocate(ReservedDescriptorRTV_Count);
-		d3d_state.reserved_dsvs = d3d_state.descriptor_heap_dsv.Allocate(ReservedDescriptorDSV_Count);
-		d3d_state.reserved_cbv_srv_uavs = d3d_state.descriptor_heap_cbv_srv_uav.Allocate(ReservedDescriptorCBVSRVUAV_Count);
+		d3d_state.reserved_rtvs = d3d_state.descriptor_heap_rtv->Allocate(ReservedDescriptorRTV_Count);
+		d3d_state.reserved_dsvs = d3d_state.descriptor_heap_dsv->Allocate(ReservedDescriptorDSV_Count);
+		d3d_state.reserved_cbv_srv_uavs = d3d_state.descriptor_heap_cbv_srv_uav->Allocate(ReservedDescriptorCBVSRVUAV_Count);
 
 		// Create command queue, list, and allocator
 		//d3d_state.command_queue_direct = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
 		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
 		{
 			D3DState::FrameContext* frame_ctx = GetFrameContext(back_buffer_idx);
+			frame_ctx->back_buffer_fence_value = 0;
 			d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&frame_ctx->back_buffer));
 
 			DX_CHECK_HR_ERR(d3d_state.device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -273,7 +274,7 @@ namespace Renderer
 		uint32_t cbv_srv_uav_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		ImGui_ImplWin32_Init(hWnd);
-		ImGui_ImplDX12_Init(d3d_state.device, DX_BACK_BUFFER_COUNT, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav.GetD3D12DescriptorHeap(),
+		ImGui_ImplDX12_Init(d3d_state.device, DX_BACK_BUFFER_COUNT, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav->GetD3D12DescriptorHeap(),
 			d3d_state.reserved_cbv_srv_uavs.GetCPUHandle(ReservedDescriptorCBVSRVUAV_DearImGui), d3d_state.reserved_cbv_srv_uavs.GetGPUHandle(ReservedDescriptorCBVSRVUAV_DearImGui));
 	}
 
@@ -327,16 +328,16 @@ namespace Renderer
 
 	void Init(const RendererInitParams& params)
 	{
+		// Initialize slotmaps
+		data.allocator_scope = MemoryScope(params.alloc, params.alloc->at_ptr);
+		data.texture_slotmap = data.allocator_scope.AllocateConstruct<ResourceSlotmap<TextureResource>>(&data.allocator_scope);
+		data.mesh_slotmap = data.allocator_scope.AllocateConstruct<ResourceSlotmap<MeshResource>>(&data.allocator_scope);
+		data.render_mesh_data = data.allocator_scope.Allocate<RenderMeshData>(1000);
+
 		// Creates the adapter, device, command queue and swapchain, etc.
 		InitD3DState(params);
 		InitPipelines();
 		InitDearImGui();
-
-		// Initialize slotmaps
-		data.texture_slotmap = data.allocator.AllocateConstruct<ResourceSlotmap<TextureResource>>(&data.allocator);
-		data.mesh_slotmap = data.allocator.AllocateConstruct<ResourceSlotmap<MeshResource>>(&data.allocator);
-
-		data.render_mesh_data = data.allocator.Allocate<RenderMeshData>(1000);
 
 		// Default textures
 		{
@@ -357,16 +358,41 @@ namespace Renderer
 	{
 		Flush();
 
-		// TODO: Release texture/mesh descriptors from the slotmaps
+		// TODO: Release all tracked resources once we have resource tracking
 
 		// Release reserved descriptors
-		d3d_state.descriptor_heap_rtv.Release(d3d_state.reserved_rtvs);
-		d3d_state.descriptor_heap_dsv.Release(d3d_state.reserved_dsvs);
-		d3d_state.descriptor_heap_cbv_srv_uav.Release(d3d_state.reserved_cbv_srv_uavs);
+		d3d_state.descriptor_heap_rtv->Release(d3d_state.reserved_rtvs);
+		d3d_state.descriptor_heap_dsv->Release(d3d_state.reserved_dsvs);
+		d3d_state.descriptor_heap_cbv_srv_uav->Release(d3d_state.reserved_cbv_srv_uavs);
+
+		// TODO: Remove once we have resource tracking that releases all resources
+		DX_RELEASE_OBJECT(d3d_state.depth_buffer);
+		DX_RELEASE_OBJECT(d3d_state.scene_cb);
+		DX_RELEASE_OBJECT(d3d_state.upload_buffer);
+		DX_RELEASE_OBJECT(GetFrameContextCurrent()->back_buffer);
+
+		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
+		{
+			D3DState::FrameContext* frame_ctx = GetFrameContext(back_buffer_idx);
+			DX_RELEASE_OBJECT(frame_ctx->command_allocator);
+			DX_RELEASE_OBJECT(frame_ctx->command_list);
+			DX_RELEASE_OBJECT(frame_ctx->instance_buffer);
+		}
 
 		ImGui_ImplDX12_Shutdown();
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();
+
+		DX_RELEASE_OBJECT(d3d_state.dxc_include_handler);
+		DX_RELEASE_OBJECT(d3d_state.dxc_utils);
+		DX_RELEASE_OBJECT(d3d_state.dxc_compiler);
+		DX_RELEASE_OBJECT(d3d_state.frame_fence);
+		DX_RELEASE_OBJECT(d3d_state.swapchain);
+		DX_RELEASE_OBJECT(d3d_state.swapchain_command_queue);
+		//DX_RELEASE_OBJECT(d3d_state.device);
+		//DX_RELEASE_OBJECT(d3d_state.adapter);
+
+		data.allocator_scope.~MemoryScope();
 	}
 
 	void Flush()
@@ -414,7 +440,6 @@ namespace Renderer
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 
-		uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 		D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + d3d_state.current_back_buffer_idx);
 		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer);
 		ID3D12Resource* back_buffer = frame_ctx->back_buffer;
@@ -442,7 +467,7 @@ namespace Renderer
 		cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
 
 		// NOTE: Before binding the root signature, we need to bind the descriptor heap
-		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav.GetD3D12DescriptorHeap() };
+		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav->GetD3D12DescriptorHeap() };
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heaps);
 
 		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.root_sig);
@@ -584,7 +609,7 @@ namespace Renderer
 		
 		TextureResource texture_resource = {};
 		texture_resource.resource = resource;
-		texture_resource.srv = d3d_state.descriptor_heap_cbv_srv_uav.Allocate();
+		texture_resource.srv = d3d_state.descriptor_heap_cbv_srv_uav->Allocate();
 		
 		D3D12_RESOURCE_DESC resource_desc = resource->GetDesc();
 		DX12::CreateTextureSRV(resource, texture_resource.srv.cpu, resource_desc.Format);
@@ -713,9 +738,8 @@ namespace Renderer
 
 		ImGui::Render();
 
-		uint32_t rtv_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 		D3D12_CPU_DESCRIPTOR_HANDLE imgui_rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + d3d_state.current_back_buffer_idx);
-		ID3D12DescriptorHeap* descriptor_heap = d3d_state.descriptor_heap_cbv_srv_uav.GetD3D12DescriptorHeap();
+		ID3D12DescriptorHeap* descriptor_heap = d3d_state.descriptor_heap_cbv_srv_uav->GetD3D12DescriptorHeap();
 		cmd_list->OMSetRenderTargets(1, &imgui_rtv_handle, FALSE, nullptr);
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heap);
 

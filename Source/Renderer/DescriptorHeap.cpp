@@ -3,7 +3,7 @@
 #include "Renderer/D3DState.h"
 #include "Renderer/DX12.h"
 
-DescriptorHeap::DescriptorHeap(LinearAllocator* allocator, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors)
+DescriptorHeap::DescriptorHeap(MemoryScope* allocator, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors)
 	: m_allocator(allocator), m_num_descriptors(num_descriptors)
 {
 	D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
@@ -19,6 +19,11 @@ DescriptorHeap::DescriptorHeap(LinearAllocator* allocator, D3D12_DESCRIPTOR_HEAP
 	m_blocks[0].descriptor_heap_index = 0;
 	m_blocks[0].num_descriptors = m_num_descriptors;
 	m_free_blocks = nullptr;
+}
+
+DescriptorHeap::~DescriptorHeap()
+{
+	DX_RELEASE_OBJECT(m_d3d_descriptor_heap);
 }
 
 DescriptorAllocation DescriptorHeap::Allocate(uint32_t num_descriptors)

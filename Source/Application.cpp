@@ -11,19 +11,34 @@
 namespace Application
 {
 
+	static void FlushEvents()
+	{
+		MSG msg = {};
+		while (::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE) != NULL)
+		{
+			continue;
+		}
+	}
+
 	struct InternalData
 	{
+		LinearAllocator allocator;
+
 		LARGE_INTEGER current_ticks, last_ticks;
 		LARGE_INTEGER frequency;
 		int64_t elapsed = 0;
 		float delta_time = 0.0;
 
 		bool running = false;
-		bool should_close = false;
+		bool should_exit = false;
 	} static data;
 
 	void Init()
 	{
+		// We need to flush the events here, in case we are restarting the application
+		// WM_QUIT events would survive until after the application had restarted
+		FlushEvents();
+
 		// ----------------------------------------------------------------------------------
 		// Create the window
 
@@ -38,12 +53,13 @@ namespace Application
 		// Initialize core systems
 
 		Renderer::RendererInitParams renderer_init_params = {};
+		renderer_init_params.alloc = &data.allocator;
 		renderer_init_params.hWnd = Window::GetHWnd();
 		renderer_init_params.width = window_props.width;
 		renderer_init_params.height = window_props.height;
 
 		Renderer::Init(renderer_init_params);
-		AssetManager::Init();
+		AssetManager::Init(&data.allocator);
 
 		// ----------------------------------------------------------------------------------
 		// Load textures
@@ -64,6 +80,9 @@ namespace Application
 		Renderer::Exit();
 
 		Window::Destroy();
+
+		data.allocator.Reset();
+		data.allocator.Decommit();
 	}
 
 	void Run()
@@ -71,7 +90,7 @@ namespace Application
 		QueryPerformanceFrequency(&data.frequency);
 		QueryPerformanceCounter(&data.last_ticks);
 
-		while (!data.should_close && data.running)
+		while (!data.should_exit && data.running)
 		{
 			QueryPerformanceCounter(&data.current_ticks);
 
@@ -100,7 +119,7 @@ namespace Application
 		{
 			if (msg.message == WM_QUIT)
 			{
-				data.should_close = true;
+				data.should_exit = true;
 				break;
 			}
 
@@ -150,6 +169,10 @@ namespace Application
 	{
 		ImGui::Begin("General");
 		
+		if (ImGui::Button("Restart application"))
+		{
+			data.running = false;
+		}
 		ImGui::Text("Delta time: %.3f ms", data.delta_time * 1000.0);
 		ImGui::Text("FPS: %u", (uint32_t)(1.0 / data.delta_time));
 
@@ -161,9 +184,9 @@ namespace Application
 		return data.running;
 	}
 
-	bool ShouldClose()
+	bool ShouldExit()
 	{
-		return data.should_close;
+		return data.should_exit;
 	}
 
 }

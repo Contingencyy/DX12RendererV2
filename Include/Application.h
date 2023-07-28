@@ -15,7 +15,7 @@ namespace Application
 
 	// As long as the application is running, the main function will call update and render
 	bool IsRunning();
-	// If the application should close, the main function will exit and close instead of just exiting and initializing again
-	bool ShouldClose();
+	// If the application should exit, the main function will exit and close instead of just exiting and initializing again
+	bool ShouldExit();
 
 }

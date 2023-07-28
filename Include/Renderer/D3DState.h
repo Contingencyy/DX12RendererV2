@@ -122,9 +122,9 @@ struct D3DState
 	uint64_t frame_fence_value;
 
 	// Descriptor heaps
-	DescriptorHeap descriptor_heap_rtv;
-	DescriptorHeap descriptor_heap_dsv;
-	DescriptorHeap descriptor_heap_cbv_srv_uav;
+	DescriptorHeap* descriptor_heap_rtv;
+	DescriptorHeap* descriptor_heap_dsv;
+	DescriptorHeap* descriptor_heap_cbv_srv_uav;
 
 	// Descriptor allocations
 	DescriptorAllocation reserved_rtvs;

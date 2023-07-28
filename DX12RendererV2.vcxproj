@@ -139,9 +139,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     </Link>
     <PostBuildEvent>
       <Command>xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
-xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.pdb" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
-xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLayers.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
-xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLayers.pdb" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"</Command>
+xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLayers.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

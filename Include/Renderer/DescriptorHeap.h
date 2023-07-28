@@ -24,7 +24,13 @@ class DescriptorHeap
 {
 public:
 	DescriptorHeap() = default;
-	DescriptorHeap(LinearAllocator* allocator, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors);
+	DescriptorHeap(MemoryScope* alloc, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors);
+	~DescriptorHeap();
+
+	DescriptorHeap(const DescriptorHeap& other) = delete;
+	DescriptorHeap(DescriptorHeap&& other) = delete;
+	const DescriptorHeap& operator=(const DescriptorHeap& other) = delete;
+	DescriptorHeap&& operator=(DescriptorHeap&& other) = delete;
 
 	DescriptorAllocation Allocate(uint32_t num_descriptors = 1);
 	void Release(const DescriptorAllocation& alloc);
@@ -41,7 +47,7 @@ private:
 	};
 
 private:
-	LinearAllocator* m_allocator;
+	MemoryScope* m_allocator;
 	ID3D12DescriptorHeap* m_d3d_descriptor_heap;
 
 	DescriptorBlock* m_blocks;
