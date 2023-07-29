@@ -25,11 +25,11 @@ public:
 	static constexpr uint32_t SLOT_OCCUPIED = 0xFFFFFFFF;
 
 public:
-	ResourceSlotmap(MemoryScope* alloc, size_t capacity = DX_RESOURCE_SLOTMAP_DEFAULT_CAPACITY)
-		: m_allocator(alloc), m_capacity(capacity)
+	ResourceSlotmap(MemoryScope* memory_scope, size_t capacity = DX_RESOURCE_SLOTMAP_DEFAULT_CAPACITY)
+		: m_memory_scope(memory_scope), m_capacity(capacity)
 	{
 		// Allocate from the given allocator
-		m_slots = m_allocator->Allocate<Slot>(m_capacity);
+		m_slots = m_memory_scope->Allocate<Slot>(m_capacity);
 
 		for (size_t slot = 0; slot < m_capacity - 1; ++slot)
 		{
@@ -123,7 +123,7 @@ private:
 		TResource resource;
 	};
 
-	MemoryScope* m_allocator;
+	MemoryScope* m_memory_scope;
 	Slot* m_slots;
 	size_t m_capacity;
 

@@ -3,8 +3,8 @@
 #include "Renderer/D3DState.h"
 #include "Renderer/DX12.h"
 
-DescriptorHeap::DescriptorHeap(MemoryScope* allocator, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors)
-	: m_allocator(allocator), m_num_descriptors(num_descriptors)
+DescriptorHeap::DescriptorHeap(MemoryScope* memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t num_descriptors)
+	: m_memory_scope(memory_scope), m_num_descriptors(num_descriptors)
 {
 	D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV || type == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
@@ -15,7 +15,7 @@ DescriptorHeap::DescriptorHeap(MemoryScope* allocator, D3D12_DESCRIPTOR_HEAP_TYP
 	m_descriptor_increment_size = d3d_state.device->GetDescriptorHandleIncrementSize(type);
 
 	// Create a single block that contains all of the descriptors
-	m_blocks = allocator->Allocate<DescriptorBlock>();
+	m_blocks = m_memory_scope->Allocate<DescriptorBlock>();
 	m_blocks[0].descriptor_heap_index = 0;
 	m_blocks[0].num_descriptors = m_num_descriptors;
 	m_free_blocks = nullptr;
@@ -117,7 +117,7 @@ void DescriptorHeap::Release(const DescriptorAllocation& alloc)
 	}
 	else
 	{
-		new_descriptor_block = m_allocator->Allocate<DescriptorBlock>();
+		new_descriptor_block = m_memory_scope->Allocate<DescriptorBlock>();
 	}
 
 	new_descriptor_block->descriptor_heap_index = alloc.descriptor_heap_index;

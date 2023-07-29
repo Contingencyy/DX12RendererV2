@@ -41,7 +41,7 @@ namespace Renderer
 
 	struct InternalData
 	{
-		MemoryScope allocator_scope;
+		MemoryScope memory_scope;
 
 		ResourceSlotmap<MeshResource>* mesh_slotmap;
 		ResourceSlotmap<TextureResource>* texture_slotmap;
@@ -190,9 +190,9 @@ namespace Renderer
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
 		// Create descriptor heaps
-		d3d_state.descriptor_heap_rtv = data.allocator_scope.AllocateConstruct<DescriptorHeap>(&data.allocator_scope, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
-		d3d_state.descriptor_heap_dsv = data.allocator_scope.AllocateConstruct<DescriptorHeap>(&data.allocator_scope, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
-		d3d_state.descriptor_heap_cbv_srv_uav = data.allocator_scope.AllocateConstruct<DescriptorHeap>(&data.allocator_scope, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV);
+		d3d_state.descriptor_heap_rtv = data.memory_scope.AllocateConstruct<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
+		d3d_state.descriptor_heap_dsv = data.memory_scope.AllocateConstruct<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
+		d3d_state.descriptor_heap_cbv_srv_uav = data.memory_scope.AllocateConstruct<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV);
 
 		// Allocate reserved descriptors
 		d3d_state.reserved_rtvs = d3d_state.descriptor_heap_rtv->Allocate(ReservedDescriptorRTV_Count);
@@ -329,10 +329,10 @@ namespace Renderer
 	void Init(const RendererInitParams& params)
 	{
 		// Initialize slotmaps
-		data.allocator_scope = MemoryScope(params.alloc, params.alloc->at_ptr);
-		data.texture_slotmap = data.allocator_scope.AllocateConstruct<ResourceSlotmap<TextureResource>>(&data.allocator_scope);
-		data.mesh_slotmap = data.allocator_scope.AllocateConstruct<ResourceSlotmap<MeshResource>>(&data.allocator_scope);
-		data.render_mesh_data = data.allocator_scope.Allocate<RenderMeshData>(1000);
+		data.memory_scope = MemoryScope(params.alloc, params.alloc->at_ptr);
+		data.texture_slotmap = data.memory_scope.AllocateConstruct<ResourceSlotmap<TextureResource>>(&data.memory_scope);
+		data.mesh_slotmap = data.memory_scope.AllocateConstruct<ResourceSlotmap<MeshResource>>(&data.memory_scope);
+		data.render_mesh_data = data.memory_scope.Allocate<RenderMeshData>(1000);
 
 		// Creates the adapter, device, command queue and swapchain, etc.
 		InitD3DState(params);
@@ -368,6 +368,7 @@ namespace Renderer
 		// TODO: Remove once we have resource tracking that releases all resources
 		DX_RELEASE_OBJECT(d3d_state.depth_buffer);
 		DX_RELEASE_OBJECT(d3d_state.scene_cb);
+		d3d_state.upload_buffer->Unmap(0, nullptr);
 		DX_RELEASE_OBJECT(d3d_state.upload_buffer);
 		DX_RELEASE_OBJECT(GetFrameContextCurrent()->back_buffer);
 
@@ -376,6 +377,7 @@ namespace Renderer
 			D3DState::FrameContext* frame_ctx = GetFrameContext(back_buffer_idx);
 			DX_RELEASE_OBJECT(frame_ctx->command_allocator);
 			DX_RELEASE_OBJECT(frame_ctx->command_list);
+			frame_ctx->instance_buffer->Unmap(0, nullptr);
 			DX_RELEASE_OBJECT(frame_ctx->instance_buffer);
 		}
 
@@ -392,7 +394,7 @@ namespace Renderer
 		//DX_RELEASE_OBJECT(d3d_state.device);
 		//DX_RELEASE_OBJECT(d3d_state.adapter);
 
-		data.allocator_scope.~MemoryScope();
+		data.memory_scope.~MemoryScope();
 	}
 
 	void Flush()
@@ -557,13 +559,15 @@ namespace Renderer
 			D3D12_RESOURCE_STATE_COPY_DEST);
 		cmd_list->ResourceBarrier(1, &copy_dst_barrier);
 
+		uint32_t bpp = TextureFormatBPP(params.format);
+
 		D3D12_RESOURCE_DESC dst_desc = resource->GetDesc();
 		D3D12_SUBRESOURCE_FOOTPRINT dst_footprint = {};
 		dst_footprint.Format = resource->GetDesc().Format;
 		dst_footprint.Width = params.width;
 		dst_footprint.Height = params.height;
 		dst_footprint.Depth = 1;
-		dst_footprint.RowPitch = DX_ALIGN_POW2(params.width * TextureFormatBPP(params.format), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+		dst_footprint.RowPitch = DX_ALIGN_POW2(params.width * bpp, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 
 		D3D12_PLACED_SUBRESOURCE_FOOTPRINT src_footprint = {};
 		src_footprint.Footprint = dst_footprint;
@@ -576,7 +580,7 @@ namespace Renderer
 		for (uint32_t y = 0; y < params.height; ++y)
 		{
 			memcpy(dst_ptr, src_ptr, dst_pitch);
-			src_ptr += params.width * TextureFormatBPP(params.format);
+			src_ptr += params.width * bpp;
 			dst_ptr += dst_pitch;
 		}
 

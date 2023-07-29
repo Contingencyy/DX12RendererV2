@@ -7,10 +7,10 @@ public:
     static constexpr const char* SLOT_UNUSED = "";
 
 public:
-    Hashmap(MemoryScope* alloc, size_t capacity = 1024)
-        : m_allocator(alloc), m_capacity(capacity), m_size(0)
+    Hashmap(MemoryScope* memory_scope, size_t capacity = 1024)
+        : m_memory_scope(memory_scope), m_capacity(capacity), m_size(0)
     {
-        m_slots = m_allocator->Allocate<Node>(m_capacity);
+        m_slots = m_memory_scope->Allocate<Node>(m_capacity);
 
         for (uint32_t i = 0; i < m_capacity; ++i)
         {
@@ -111,7 +111,7 @@ private:
         TValue value;
     };
 
-    MemoryScope* m_allocator;
+    MemoryScope* m_memory_scope;
     size_t m_capacity;
     size_t m_size;
 

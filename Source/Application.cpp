@@ -81,8 +81,9 @@ namespace Application
 
 		Window::Destroy();
 
-		data.allocator.Reset();
 		data.allocator.Decommit();
+		data.allocator.Reset();
+		//data.allocator.Release();
 	}
 
 	void Run()
@@ -104,11 +105,11 @@ namespace Application
 			Update(data.delta_time);
 			Render();
 
-			data.last_ticks = data.current_ticks;
-
 			// We reset and decommit the thread local allocator every frame
 			g_thread_alloc.Reset();
 			g_thread_alloc.Decommit();
+
+			data.last_ticks = data.current_ticks;
 		}
 	}
 
@@ -167,7 +168,7 @@ namespace Application
 
 	void OnImGuiRender()
 	{
-		ImGui::Begin("General");
+		ImGui::Begin("Application");
 		
 		if (ImGui::Button("Restart application"))
 		{
@@ -175,6 +176,13 @@ namespace Application
 		}
 		ImGui::Text("Delta time: %.3f ms", data.delta_time * 1000.0);
 		ImGui::Text("FPS: %u", (uint32_t)(1.0 / data.delta_time));
+
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+		if (ImGui::CollapsingHeader("Memory (RAM)"))
+		{
+			ImGui::Text("Total allocated: %u KB", DX_TO_KB((size_t)(data.allocator.at_ptr - data.allocator.base_ptr)));
+			ImGui::Text("Total committed: %u KB", DX_TO_KB((size_t)(data.allocator.committed_ptr - data.allocator.base_ptr)));
+		}
 
 		ImGui::End();
 	}

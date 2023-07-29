@@ -19,7 +19,7 @@ namespace FileIO
 	};
 
 	LoadImageResult LoadImage(const char* filepath);
-	void FreeImage(const LoadImageResult& result);
+	void FreeImage(LoadImageResult *result);
 
 	cgltf_data* LoadGLTF(const char* filepath);
 

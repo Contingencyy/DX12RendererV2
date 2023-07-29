@@ -87,9 +87,11 @@ void LinearAllocator::Reset()
 
 void LinearAllocator::Reset(void* ptr)
 {
-	// Reset the current at pointer to a previous state
-	// TODO: Scope stacks, call finalizers when resetting the pointer
-	at_ptr = (uint8_t*)ptr;
+	if (ptr)
+	{
+		// Reset the current at pointer to a previous state
+		at_ptr = (uint8_t*)ptr;
+	}
 }
 
 void LinearAllocator::Decommit()
@@ -104,6 +106,12 @@ void LinearAllocator::Decommit()
 		VirtualMemory::Decommit(decommit_from, decommit_bytes);
 		committed_ptr = decommit_from;
 	}
+}
+
+void LinearAllocator::Release()
+{
+	VirtualMemory::Release(base_ptr);
+	base_ptr = at_ptr = end_ptr = committed_ptr = nullptr;
 }
 
 thread_local LinearAllocator g_thread_alloc;

@@ -89,7 +89,7 @@ namespace AssetManager
 
     struct InternalData
     {
-        MemoryScope allocator_scope;
+        MemoryScope memory_scope;
 
         Hashmap<const char*, ResourceHandle>* texture_assets_map;
         Hashmap<const char*, Model>* model_assets_map;
@@ -97,20 +97,20 @@ namespace AssetManager
 
     void Init(LinearAllocator* alloc)
     {
-        data.allocator_scope = MemoryScope(alloc, alloc->at_ptr);
+        data.memory_scope = MemoryScope(alloc, alloc->at_ptr);
 
-        data.texture_assets_map = data.allocator_scope.AllocateConstruct<Hashmap<const char*, ResourceHandle>>(&data.allocator_scope, 1024);
-        data.model_assets_map = data.allocator_scope.AllocateConstruct<Hashmap<const char*, Model>>(&data.allocator_scope, 64);
+        data.texture_assets_map = data.memory_scope.AllocateConstruct<Hashmap<const char*, ResourceHandle>>(&data.memory_scope, 1024);
+        data.model_assets_map = data.memory_scope.AllocateConstruct<Hashmap<const char*, Model>>(&data.memory_scope, 64);
     }
 
     void Exit()
     {
-        data.allocator_scope.~MemoryScope();
+        data.memory_scope.~MemoryScope();
     }
 
 	void LoadTexture(const char* filepath)
 	{
-		FileIO::LoadImageResult image = FileIO::LoadImage(filepath);
+        FileIO::LoadImageResult image = FileIO::LoadImage(filepath);
 
 		Renderer::UploadTextureParams texture_params = {};
 		texture_params.format = Renderer::TextureFormat_RGBA8;
@@ -120,7 +120,7 @@ namespace AssetManager
 		texture_params.name = filepath;
 		
 		ResourceHandle texture_handle = Renderer::UploadTexture(texture_params);
-        FileIO::FreeImage(image);
+        FileIO::FreeImage(&image);
 
         data.texture_assets_map->Insert(filepath, texture_handle);
 	}
@@ -136,7 +136,7 @@ namespace AssetManager
 
         Model model = {};
         model.name = filepath;
-        model.nodes = data.allocator_scope.Allocate<Model::Node>(cgltf_data->nodes_count);
+        model.nodes = data.memory_scope.Allocate<Model::Node>(cgltf_data->nodes_count);
         model.num_nodes = cgltf_data->nodes_count;
 
         // -------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ namespace AssetManager
             Model::Node* node = &model.nodes[node_idx];
             node->transform = cgltf_node->mesh ? CGLTFNodeGetTransform(cgltf_node) : Mat4x4Identity();
             node->num_children = cgltf_node->children_count;
-            node->children = data.allocator_scope.Allocate<size_t>(cgltf_node->children_count);
+            node->children = data.memory_scope.Allocate<size_t>(cgltf_node->children_count);
 
             for (uint32_t child_idx = 0; child_idx < cgltf_node->children_count; ++child_idx)
             {
@@ -255,8 +255,8 @@ namespace AssetManager
             if (cgltf_node->mesh)
             {
                 node->num_meshes = cgltf_node->mesh->primitives_count;
-                node->mesh_handles = data.allocator_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
-                node->texture_handles = data.allocator_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
+                node->mesh_handles = data.memory_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
+                node->texture_handles = data.memory_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
 
                 for (uint32_t prim_idx = 0; prim_idx < cgltf_node->mesh->primitives_count; ++prim_idx)
                 {
@@ -283,7 +283,7 @@ namespace AssetManager
         }
 
         size_t root_node_cur = 0;
-        model.root_nodes = data.allocator_scope.Allocate<size_t>(model.num_root_nodes);
+        model.root_nodes = data.memory_scope.Allocate<size_t>(model.num_root_nodes);
 
         for (uint32_t node_idx = 0; node_idx < cgltf_data->nodes_count; ++node_idx)
         {

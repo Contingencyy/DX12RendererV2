@@ -15,10 +15,16 @@ struct LinearAllocator
 	uint8_t* end_ptr;
 	uint8_t* committed_ptr;
 
+	// Allocates raw bytes from the allocator
 	void* Allocate(size_t num_bytes, size_t align);
+	// Resets the current at pointer to the base
 	void Reset();
+	// Resets the current at pointer to the specified pointer
 	void Reset(void* ptr);
+	// Decommits all memory pages except for the last ALLOCATOR_DEFAULT_DECOMMIT_LEFTOVER_SIZE bytes
 	void Decommit();
+	// Decommits all committed memory pages, then releases them
+	void Release();
 
 };
 
