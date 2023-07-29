@@ -32,6 +32,8 @@ namespace VirtualMemory
 
 }
 
+MemoryStatistics g_global_memory_stats;
+
 size_t GetAlignedByteSizeLeft(LinearAllocator* allocator, size_t align)
 {
 	size_t byte_size_left = allocator->end_ptr - allocator->at_ptr;
@@ -49,6 +51,13 @@ void AdvancePointer(LinearAllocator* allocator, uint8_t* new_at_ptr)
 			size_t commit_chunk_size = DX_ALIGN_POW2(new_at_ptr - allocator->committed_ptr, ALLOCATOR_DEFAULT_COMMIT_CHUNK_SIZE);
 			VirtualMemory::Commit(allocator->committed_ptr, commit_chunk_size);
 			allocator->committed_ptr += commit_chunk_size;
+
+#ifdef TRACK_GLOBAL_MEMORY_STATISTICS
+			g_global_memory_stats.total_committed_bytes += commit_chunk_size;
+#endif
+#ifdef TRACK_LOCAL_MEMORY_STATISTICS
+			allocator->memory_stats.total_committed_bytes += commit_chunk_size;
+#endif
 		}
 
 		allocator->at_ptr = new_at_ptr;
@@ -74,6 +83,14 @@ void* LinearAllocator::Allocate(size_t num_bytes, size_t align)
 		AdvancePointer(this, alloc + num_bytes);
 		// We initialize the allocated bytes to 0
 		memset(alloc, 0, num_bytes);
+
+
+#ifdef TRACK_GLOBAL_MEMORY_STATISTICS
+		g_global_memory_stats.total_allocated_bytes += at_ptr - alloc;
+#endif
+#ifdef TRACK_LOCAL_MEMORY_STATISTICS
+		memory_stats.total_allocated_bytes += at_ptr - alloc;
+#endif
 	}
 
 	return alloc;
@@ -82,6 +99,12 @@ void* LinearAllocator::Allocate(size_t num_bytes, size_t align)
 void LinearAllocator::Reset()
 {
 	// Reset the current at pointer to the beginning
+#ifdef TRACK_GLOBAL_MEMORY_STATISTICS
+	g_global_memory_stats.total_deallocated_bytes += at_ptr - base_ptr;
+#endif
+#ifdef TRACK_LOCAL_MEMORY_STATISTICS
+	memory_stats.total_deallocated_bytes += at_ptr - base_ptr;
+#endif
 	at_ptr = base_ptr;
 }
 
@@ -90,6 +113,12 @@ void LinearAllocator::Reset(void* ptr)
 	if (ptr)
 	{
 		// Reset the current at pointer to a previous state
+#ifdef TRACK_GLOBAL_MEMORY_STATISTICS
+		g_global_memory_stats.total_deallocated_bytes += at_ptr - ptr;
+#endif
+#ifdef TRACK_LOCAL_MEMORY_STATISTICS
+		memory_stats.total_deallocated_bytes += at_ptr - ptr;
+#endif
 		at_ptr = (uint8_t*)ptr;
 	}
 }
@@ -106,6 +135,13 @@ void LinearAllocator::Decommit()
 		VirtualMemory::Decommit(decommit_from, decommit_bytes);
 		committed_ptr = decommit_from;
 	}
+
+#ifdef TRACK_GLOBAL_MEMORY_STATISTICS
+	g_global_memory_stats.total_decommitted_bytes += decommit_bytes;
+#endif
+#ifdef TRACK_LOCAL_MEMORY_STATISTICS
+	memory_stats.total_decommitted_bytes += decommit_bytes;
+#endif
 }
 
 void LinearAllocator::Release()

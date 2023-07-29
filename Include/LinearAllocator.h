@@ -3,6 +3,19 @@
 
 typedef unsigned char uint8_t;
 
+#define TRACK_GLOBAL_MEMORY_STATISTICS
+#define TRACK_LOCAL_MEMORY_STATISTICS
+
+struct MemoryStatistics
+{
+	size_t total_allocated_bytes;
+	size_t total_deallocated_bytes;
+	size_t total_committed_bytes;
+	size_t total_decommitted_bytes;
+};
+
+extern MemoryStatistics g_global_memory_stats;
+
 struct LinearAllocator
 {
 
@@ -14,6 +27,10 @@ struct LinearAllocator
 	uint8_t* at_ptr;
 	uint8_t* end_ptr;
 	uint8_t* committed_ptr;
+
+#ifdef TRACK_LOCAL_MEMORY_STATISTICS
+	MemoryStatistics memory_stats;
+#endif
 
 	// Allocates raw bytes from the allocator
 	void* Allocate(size_t num_bytes, size_t align);

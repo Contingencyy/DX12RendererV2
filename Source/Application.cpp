@@ -178,10 +178,21 @@ namespace Application
 		ImGui::Text("FPS: %u", (uint32_t)(1.0 / data.delta_time));
 
 		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-		if (ImGui::CollapsingHeader("Memory (RAM)"))
+		if (ImGui::CollapsingHeader("Memory Statistics (RAM)"))
 		{
-			ImGui::Text("Total allocated: %u KB", DX_TO_KB((size_t)(data.allocator.at_ptr - data.allocator.base_ptr)));
-			ImGui::Text("Total committed: %u KB", DX_TO_KB((size_t)(data.allocator.committed_ptr - data.allocator.base_ptr)));
+			ImGui::Text("Global memory statistics");
+			ImGui::Text("Total allocated: %u MB", DX_TO_MB(g_global_memory_stats.total_allocated_bytes));
+			ImGui::Text("Total deallocated: %u MB", DX_TO_MB(g_global_memory_stats.total_deallocated_bytes));
+			ImGui::Text("Total committed: %u MB", DX_TO_MB(g_global_memory_stats.total_committed_bytes));
+			ImGui::Text("Total decommitted: %u MB", DX_TO_MB(g_global_memory_stats.total_decommitted_bytes));
+
+			ImGui::Separator();
+
+			ImGui::Text("Thread local memory statistics (Scratch)");
+			ImGui::Text("Total allocated: %u MB", DX_TO_MB(g_thread_alloc.memory_stats.total_allocated_bytes));
+			ImGui::Text("Total deallocated: %u MB", DX_TO_MB(g_thread_alloc.memory_stats.total_deallocated_bytes));
+			ImGui::Text("Total committed: %u MB", DX_TO_MB(g_thread_alloc.memory_stats.total_committed_bytes));
+			ImGui::Text("Total decommitted: %u MB", DX_TO_MB(g_thread_alloc.memory_stats.total_decommitted_bytes));
 		}
 
 		ImGui::End();
