@@ -89,15 +89,16 @@ namespace AssetManager
 
     struct InternalData
     {
+        LinearAllocator alloc;
         MemoryScope memory_scope;
 
         Hashmap<const char*, ResourceHandle>* texture_assets_map;
         Hashmap<const char*, Model>* model_assets_map;
     } static data;
 
-    void Init(LinearAllocator* alloc)
+    void Init()
     {
-        data.memory_scope = MemoryScope(alloc, alloc->at_ptr);
+        data.memory_scope = MemoryScope(&data.alloc, data.alloc.at_ptr);
 
         data.texture_assets_map = data.memory_scope.AllocateConstruct<Hashmap<const char*, ResourceHandle>>(&data.memory_scope, 1024);
         data.model_assets_map = data.memory_scope.AllocateConstruct<Hashmap<const char*, Model>>(&data.memory_scope, 64);
@@ -105,6 +106,9 @@ namespace AssetManager
 
     void Exit()
     {
+        // NOTE: I am not very fond of this.. Memory scopes are great for RAII, but my systems do not have a constructor/destructor
+		// which means we have to call the memory scope destructor manually here. I will figure this out later, I need to make up my mind about
+		// RAII first.
         data.memory_scope.~MemoryScope();
     }
 

@@ -114,7 +114,7 @@ private:
 		return handle;
 	}
 
-private:
+public:
 	struct Slot
 	{
 		uint32_t next_free;

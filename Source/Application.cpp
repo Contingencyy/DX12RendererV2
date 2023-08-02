@@ -22,8 +22,6 @@ namespace Application
 
 	struct InternalData
 	{
-		LinearAllocator allocator;
-
 		LARGE_INTEGER current_ticks, last_ticks;
 		LARGE_INTEGER frequency;
 		int64_t elapsed = 0;
@@ -53,13 +51,12 @@ namespace Application
 		// Initialize core systems
 
 		Renderer::RendererInitParams renderer_init_params = {};
-		renderer_init_params.alloc = &data.allocator;
 		renderer_init_params.hWnd = Window::GetHWnd();
 		renderer_init_params.width = window_props.width;
 		renderer_init_params.height = window_props.height;
 
 		Renderer::Init(renderer_init_params);
-		AssetManager::Init(&data.allocator);
+		AssetManager::Init();
 
 		// ----------------------------------------------------------------------------------
 		// Load textures
@@ -81,9 +78,8 @@ namespace Application
 
 		Window::Destroy();
 
-		data.allocator.Decommit();
-		data.allocator.Reset();
-		//data.allocator.Release();
+		g_global_memory_stats.Reset();
+		g_thread_alloc.memory_stats.Reset();
 	}
 
 	void Run()

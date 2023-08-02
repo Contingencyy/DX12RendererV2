@@ -117,7 +117,7 @@
       <WarningLevel>Level4</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;Extern/DXC/lib/x64/dxcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;Extern/DXC/lib/x64/dxcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
@@ -135,7 +135,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
       <WarningLevel>Level4</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;Extern/DXC/lib/x64/dxcompiler.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;dxguid.lib;Extern/DXC/lib/x64/dxcompiler.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\D3D12Core.dll" "$(SolutionDir)bin\$(Configuration)\$(Platform)\D3D12\"
@@ -196,6 +196,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     <ClCompile Include="Source\Renderer\DescriptorHeap.cpp" />
     <ClCompile Include="Source\Renderer\DX12.cpp" />
     <ClCompile Include="Source\Renderer\Renderer.cpp" />
+    <ClCompile Include="Source\Renderer\ResourceTracker.cpp" />
     <ClCompile Include="Source\Scene.cpp" />
     <ClCompile Include="Source\Window.cpp" />
   </ItemGroup>
@@ -216,6 +217,7 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     <ClInclude Include="Include\Renderer\DescriptorHeap.h" />
     <ClInclude Include="Include\Renderer\DX12.h" />
     <ClInclude Include="Include\Renderer\Renderer.h" />
+    <ClInclude Include="Include\Renderer\ResourceTracker.h" />
     <ClInclude Include="Include\Shaders\Shared.hlsl.h" />
     <ClInclude Include="Include\Containers\ResourceSlotmap.h" />
     <ClInclude Include="Include\Scene.h" />

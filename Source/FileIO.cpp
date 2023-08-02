@@ -12,7 +12,8 @@ void* Realloc(void* ptr, size_t old_size, size_t new_size)
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_MALLOC(size) g_thread_alloc.Allocate(size, 1)
 #define STBI_REALLOC_SIZED(ptr, old_size, new_size) Realloc(ptr, old_size, new_size)
-#define STBI_FREE(ptr) g_thread_alloc.Reset(ptr);
+// TODO: This should be a noop, it would be nicer if each asset upload had its own memory scope
+#define STBI_FREE(ptr) g_thread_alloc.Reset(ptr)
 #include "stb_image/stb_image.h"
 #include "cgltf/cgltf.h"
 

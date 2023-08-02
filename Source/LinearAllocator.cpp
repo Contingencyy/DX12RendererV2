@@ -1,6 +1,9 @@
 #include "Pch.h"
 #include "LinearAllocator.h"
 
+MemoryStatistics g_global_memory_stats;
+thread_local LinearAllocator g_thread_alloc;
+
 namespace VirtualMemory
 {
 
@@ -31,8 +34,6 @@ namespace VirtualMemory
 	}
 
 }
-
-MemoryStatistics g_global_memory_stats;
 
 size_t GetAlignedByteSizeLeft(LinearAllocator* allocator, size_t align)
 {
@@ -149,5 +150,3 @@ void LinearAllocator::Release()
 	VirtualMemory::Release(base_ptr);
 	base_ptr = at_ptr = end_ptr = committed_ptr = nullptr;
 }
-
-thread_local LinearAllocator g_thread_alloc;

@@ -2,6 +2,7 @@
 #include "Renderer/Renderer.h"
 #include "Renderer/D3DState.h"
 #include "Renderer/DX12.h"
+#include "Renderer/ResourceTracker.h"
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_win32.h"
@@ -41,6 +42,7 @@ namespace Renderer
 
 	struct InternalData
 	{
+		LinearAllocator alloc;
 		MemoryScope memory_scope;
 
 		ResourceSlotmap<MeshResource>* mesh_slotmap;
@@ -96,7 +98,6 @@ namespace Renderer
 
 #ifdef _DEBUG
 		// Enable debug layer
-		// TODO: Add GPU validation toggle
 		ID3D12Debug* debug_controller;
 		DX_FAILED_HR(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller)))
 		{
@@ -109,8 +110,9 @@ namespace Renderer
 		{
 			debug_controller1->SetEnableGPUBasedValidation(true);
 		}
+		DX_RELEASE_INTERFACE(debug_controller1);
 #endif
-		DX_RELEASE_OBJECT(debug_controller);
+		DX_RELEASE_INTERFACE(debug_controller);
 #endif
 
 #ifdef _DEBUG
@@ -138,6 +140,8 @@ namespace Renderer
 			{
 				max_dedicated_video_memory = adapter_desc.DedicatedVideoMemory;
 				DX_CHECK_HR(dxgi_adapter->QueryInterface(IID_PPV_ARGS(&d3d_state.adapter)));
+				DX_CHECK_HR(d3d_state.adapter->GetDesc(&d3d_state.adapter_desc));
+				DX_RELEASE_INTERFACE(d3d_state.adapter);
 			}
 		}
 
@@ -153,6 +157,7 @@ namespace Renderer
 			DX_CHECK_HR(info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE));
 			DX_CHECK_HR(info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE));
 		}
+		DX_RELEASE_INTERFACE(info_queue);
 #endif
 
 		// Create the swap chain
@@ -166,6 +171,10 @@ namespace Renderer
 		D3D12_FEATURE_DATA_D3D12_OPTIONS12 feature_options12 = {};
 		d3d_state.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &feature_options12, sizeof(feature_options12));
 		DX_ASSERT(feature_options12.EnhancedBarriersSupported && "DirectX 12 Enhanced barriers are not supported");
+		
+		/*D3D12_FEATURE_DATA_D3D12_OPTIONS16 feature_options16 = {};
+		d3d_state.device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS16, &feature_options16, sizeof(feature_options16));
+		DX_ASSERT(feature_options16.GPUUploadHeapSupported && "DirectX 12 GPU upload heaps are not supported");*/
 
 		// Create the command queue for the swap chain
 		d3d_state.swapchain_command_queue = DX12::CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
@@ -187,6 +196,7 @@ namespace Renderer
 		DX_CHECK_HR_ERR(dxgi_factory->CreateSwapChainForHwnd(d3d_state.swapchain_command_queue, params.hWnd, &swap_chain_desc, nullptr, nullptr, &swap_chain), "Failed to create DXGI swap chain");
 		DX_CHECK_HR(swap_chain->QueryInterface(&d3d_state.swapchain));
 		DX_CHECK_HR(dxgi_factory->MakeWindowAssociation(params.hWnd, DXGI_MWA_NO_ALT_ENTER));
+		DX_RELEASE_INTERFACE(d3d_state.swapchain);
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
 		// Create descriptor heaps
@@ -229,7 +239,7 @@ namespace Renderer
 		clear_value.DepthStencil.Depth = 1.0;
 		clear_value.DepthStencil.Stencil = 0;
 		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
-			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+			D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear_value, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
 		DX12::CreateTextureDSV(d3d_state.depth_buffer, d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer), DXGI_FORMAT_D32_FLOAT);
 
@@ -320,7 +330,7 @@ namespace Renderer
 		clear_value.DepthStencil.Depth = 1.0;
 		clear_value.DepthStencil.Stencil = 0;
 		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
-			&clear_value, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+			D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear_value, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
 		// Do not forget to create a new depth stencil view for the depth buffer
 		DX12::CreateTextureDSV(d3d_state.depth_buffer, d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer), DXGI_FORMAT_D32_FLOAT);
@@ -329,12 +339,12 @@ namespace Renderer
 	void Init(const RendererInitParams& params)
 	{
 		// Initialize slotmaps
-		data.memory_scope = MemoryScope(params.alloc, params.alloc->at_ptr);
+		data.memory_scope = MemoryScope(&data.alloc, data.alloc.at_ptr);
 		data.texture_slotmap = data.memory_scope.AllocateConstruct<ResourceSlotmap<TextureResource>>(&data.memory_scope);
 		data.mesh_slotmap = data.memory_scope.AllocateConstruct<ResourceSlotmap<MeshResource>>(&data.memory_scope);
 		data.render_mesh_data = data.memory_scope.Allocate<RenderMeshData>(1000);
 
-		// Creates the adapter, device, command queue and swapchain, etc.
+		ResourceTracker::Init(&data.memory_scope);
 		InitD3DState(params);
 		InitPipelines();
 		InitDearImGui();
@@ -358,18 +368,12 @@ namespace Renderer
 	{
 		Flush();
 
-		// TODO: Release all tracked resources once we have resource tracking
-
 		// Release reserved descriptors
 		d3d_state.descriptor_heap_rtv->Release(d3d_state.reserved_rtvs);
 		d3d_state.descriptor_heap_dsv->Release(d3d_state.reserved_dsvs);
 		d3d_state.descriptor_heap_cbv_srv_uav->Release(d3d_state.reserved_cbv_srv_uavs);
 
-		// TODO: Remove once we have resource tracking that releases all resources
-		DX_RELEASE_OBJECT(d3d_state.depth_buffer);
-		DX_RELEASE_OBJECT(d3d_state.scene_cb);
 		d3d_state.upload_buffer->Unmap(0, nullptr);
-		DX_RELEASE_OBJECT(d3d_state.upload_buffer);
 		DX_RELEASE_OBJECT(GetFrameContextCurrent()->back_buffer);
 
 		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
@@ -378,12 +382,17 @@ namespace Renderer
 			DX_RELEASE_OBJECT(frame_ctx->command_allocator);
 			DX_RELEASE_OBJECT(frame_ctx->command_list);
 			frame_ctx->instance_buffer->Unmap(0, nullptr);
-			DX_RELEASE_OBJECT(frame_ctx->instance_buffer);
 		}
 
 		ImGui_ImplDX12_Shutdown();
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();
+
+		// Releases all tracked ID3D12 resources (does not call ID3D12Resource::Unmap)
+		ResourceTracker::Exit();
+
+		DX_RELEASE_OBJECT(d3d_state.default_raster_pipeline.root_sig);
+		DX_RELEASE_OBJECT(d3d_state.default_raster_pipeline.pipeline_state);
 
 		DX_RELEASE_OBJECT(d3d_state.dxc_include_handler);
 		DX_RELEASE_OBJECT(d3d_state.dxc_utils);
@@ -391,10 +400,24 @@ namespace Renderer
 		DX_RELEASE_OBJECT(d3d_state.frame_fence);
 		DX_RELEASE_OBJECT(d3d_state.swapchain);
 		DX_RELEASE_OBJECT(d3d_state.swapchain_command_queue);
-		//DX_RELEASE_OBJECT(d3d_state.device);
-		//DX_RELEASE_OBJECT(d3d_state.adapter);
 
+		// NOTE: I am not very fond of this.. Memory scopes are great for RAII, but my systems do not have a constructor/destructor
+		// which means we have to call the memory scope destructor manually here. I will figure this out later, I need to make up my mind about
+		// RAII first.
 		data.memory_scope.~MemoryScope();
+
+		/*ID3D12DebugDevice2* debug_device;
+		d3d_state.device->QueryInterface(IID_PPV_ARGS(&debug_device));
+		debug_device->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL);
+		DX_RELEASE_INTERFACE(debug_device);*/
+
+		DX_RELEASE_OBJECT(d3d_state.device);
+		DX_RELEASE_OBJECT(d3d_state.adapter);
+
+		/*IDXGIDebug1* dxgi_debug;
+		DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgi_debug));
+		DX_CHECK_HR(dxgi_debug->ReportLiveObjects(DXGI_DEBUG_DX, DXGI_DEBUG_RLO_ALL));
+		DX_RELEASE_INTERFACE(dxgi_debug);*/
 	}
 
 	void Flush()
@@ -550,13 +573,12 @@ namespace Renderer
 
 	ResourceHandle UploadTexture(const UploadTextureParams& params)
 	{
-		ID3D12Resource* resource = DX12::CreateTexture(DX12::UTF16FromUTF8(&g_thread_alloc, params.name), TextureFormatToDXGIFormat(params.format), params.width, params.height);
+		ID3D12Resource* resource = DX12::CreateTexture(DX12::UTF16FromUTF8(&g_thread_alloc, params.name),
+			TextureFormatToDXGIFormat(params.format), params.width, params.height);
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
-		D3D12_RESOURCE_BARRIER copy_dst_barrier = DX12::TransitionBarrier(resource,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_COPY_DEST);
+		D3D12_RESOURCE_BARRIER copy_dst_barrier = ResourceTracker::TransitionBarrier(resource, D3D12_RESOURCE_STATE_COPY_DEST);
 		cmd_list->ResourceBarrier(1, &copy_dst_barrier);
 
 		uint32_t bpp = TextureFormatBPP(params.format);
@@ -596,8 +618,7 @@ namespace Renderer
 
 		cmd_list->CopyTextureRegion(&dst_loc, 0, 0, 0, &src_loc, nullptr);
 
-		D3D12_RESOURCE_BARRIER pixel_src_barrier = DX12::TransitionBarrier(resource,
-			D3D12_RESOURCE_STATE_COPY_DEST,
+		D3D12_RESOURCE_BARRIER pixel_src_barrier = ResourceTracker::TransitionBarrier(resource,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		cmd_list->ResourceBarrier(1, &pixel_src_barrier);
 		
@@ -634,13 +655,19 @@ namespace Renderer
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
+
+		D3D12_RESOURCE_BARRIER copy_dst_barriers[] = {
+			ResourceTracker::TransitionBarrier(vertex_buffer, D3D12_RESOURCE_STATE_COPY_DEST),
+			ResourceTracker::TransitionBarrier(index_buffer, D3D12_RESOURCE_STATE_COPY_DEST)
+		};
+		cmd_list->ResourceBarrier(DX_ARRAY_SIZE(copy_dst_barriers), copy_dst_barriers);
 		cmd_list->CopyBufferRegion(vertex_buffer, 0, d3d_state.upload_buffer, 0, vb_total_bytes);
 		cmd_list->CopyBufferRegion(index_buffer, 0, d3d_state.upload_buffer, vb_total_bytes, ib_total_bytes);
 
 		D3D12_RESOURCE_BARRIER barriers[] =
 		{
-			DX12::TransitionBarrier(vertex_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
-			DX12::TransitionBarrier(index_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER)
+			ResourceTracker::TransitionBarrier(vertex_buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
+			ResourceTracker::TransitionBarrier(index_buffer, D3D12_RESOURCE_STATE_INDEX_BUFFER)
 		};
 		cmd_list->ResourceBarrier(2, barriers);
 
@@ -692,6 +719,10 @@ namespace Renderer
 		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("General"))
 		{
+			ImGui::Text("%ls", d3d_state.adapter_desc.Description);
+			ImGui::Text("Dedicated video memory: %u MB", DX_TO_MB(d3d_state.adapter_desc.DedicatedVideoMemory));
+			ImGui::Text("Dedicated system memory: %u MB", DX_TO_MB(d3d_state.adapter_desc.DedicatedSystemMemory));
+			ImGui::Text("Shared system memory: %u MB", DX_TO_MB(d3d_state.adapter_desc.SharedSystemMemory));
 			ImGui::Text("Back buffer count: %u", DX_BACK_BUFFER_COUNT);
 			ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
 		}

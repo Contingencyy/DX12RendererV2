@@ -46,6 +46,8 @@ if ((object)) \
 (object) = nullptr
 #endif
 
+#define DX_RELEASE_INTERFACE(object) object->Release()
+
 enum ReservedDescriptorRTV : uint32_t
 {
 	ReservedDescriptorRTV_BackBuffer0,
@@ -88,6 +90,7 @@ struct D3DState
 
 	// Adapter and device
 	IDXGIAdapter4* adapter;
+	DXGI_ADAPTER_DESC adapter_desc;
 	ID3D12Device8* device;
 
 	// Swap chain

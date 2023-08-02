@@ -1,20 +1,22 @@
 #pragma once
 
+#define DX_HASHMAP_DEFAULT_CAPACITY 1024
+
 template<typename TKey, typename TValue>
 class Hashmap
 {
 public:
-    static constexpr const char* SLOT_UNUSED = "";
+    static constexpr TKey NODE_UNUSED = 0;
 
 public:
-    Hashmap(MemoryScope* memory_scope, size_t capacity = 1024)
+    Hashmap(MemoryScope* memory_scope, size_t capacity = DX_HASHMAP_DEFAULT_CAPACITY)
         : m_memory_scope(memory_scope), m_capacity(capacity), m_size(0)
     {
-        m_slots = m_memory_scope->Allocate<Node>(m_capacity);
+        m_nodes = m_memory_scope->Allocate<Node>(m_capacity);
 
         for (uint32_t i = 0; i < m_capacity; ++i)
         {
-            m_slots[i].key = SLOT_UNUSED;
+            m_nodes[i].key = NODE_UNUSED;
         }
     }
 
@@ -23,7 +25,7 @@ public:
     const Hashmap& operator=(const Hashmap& other) = delete;
     Hashmap&& operator=(Hashmap&& other) = delete;
 
-    void Insert(const char* key, TValue value)
+    void Insert(TKey key, TValue value)
     {
         // TODO: Automatically grow hashmap?
         DX_ASSERT(m_size < m_capacity && "Failed to insert key value pair into hashmap");
@@ -32,79 +34,95 @@ public:
             .key = key,
             .value = value
         };
-        uint32_t slot_index = HashSlotIndex(key);
+        uint32_t node_index = HashNodeIndex(key);
 
-        while (m_slots[slot_index].key != key &&
-            m_slots[slot_index].key != SLOT_UNUSED)
+        while (m_nodes[node_index].key != key &&
+            m_nodes[node_index].key != NODE_UNUSED)
         {
-            slot_index++;
-            slot_index %= m_capacity;
+            node_index++;
+            node_index %= m_capacity;
         }
 
-        m_slots[slot_index] = temp;
+        m_nodes[node_index] = temp;
         m_size++;
     }
 
-    void Remove(const char* key)
+    void Remove(TKey key)
     {
-        uint32_t slot_index = HashSlotIndex(key);
+        uint32_t node_index = HashNodeIndex(key);
 
-        while (m_slots[slot_index].key != SLOT_UNUSED)
+        while (m_nodes[node_index].key != NODE_UNUSED)
         {
-            if (m_slots[slot_index].key == key)
+            if (m_nodes[node_index].key == key)
             {
-                Node* slot = &m_slots[slot_index];
+                Node* node = &m_nodes[node_index];
 
                 if constexpr (!std::is_trivially_destructible_v<TValue>)
                 {
-                    slot->value.~TValue();
+                    node->value.~TValue();
                 }
 
-                slot->key = SLOT_UNUSED;
-                slot->value = {};
+                node->key = NODE_UNUSED;
+                node->value = {};
 
                 m_size--;
                 break;
             }
 
-            slot_index++;
-            slot_index %= m_capacity;
+            node_index++;
+            node_index %= m_capacity;
         }
     }
 
-    TValue* Find(const char* key)
+    TValue* Find(TKey key)
     {
         TValue* value = nullptr;
-        uint32_t slot_index = HashSlotIndex(key);
+        uint32_t node_index = HashNodeIndex(key);
         uint32_t counter = 0;
 
-        while (m_slots[slot_index].key != SLOT_UNUSED)
+        while (m_nodes[node_index].key != NODE_UNUSED)
         {
             if (counter++ > m_capacity)
             {
                 break;
             }
 
-            if (m_slots[slot_index].key == key)
+            if (m_nodes[node_index].key == key)
             {
-                value = &m_slots[slot_index].value;
+                value = &m_nodes[node_index].value;
                 break;
             }
 
-            slot_index++;
-            slot_index %= m_capacity;
+            node_index++;
+            node_index %= m_capacity;
         }
 
         return value;
     }
 
-private:
-    uint32_t HashSlotIndex(const char* key)
+    void Reset()
     {
-        return Hash::DJB2(key, strlen(key)) % m_capacity;
+        for (uint32_t i = 0; i < m_capacity; ++i)
+        {
+            if (m_nodes[i].key != NODE_UNUSED)
+            {
+                if constexpr (!std::is_trivially_destructible_v<TValue>)
+                {
+                    m_nodes[i].value.~TValue();
+                }
+            }
+
+            m_nodes[i].key = NODE_UNUSED;
+        }
     }
 
 private:
+    uint32_t HashNodeIndex(TKey key)
+    {
+        return Hash::DJB2(key, sizeof(key)) % m_capacity;
+    }
+
+public:
     struct Node
     {
         TKey key;
@@ -115,6 +133,6 @@ private:
     size_t m_capacity;
     size_t m_size;
 
-    Node* m_slots;
+    Node* m_nodes;
 
 };

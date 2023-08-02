@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Renderer/DX12.h"
 #include "Renderer/D3DState.h"
+#include "Renderer/ResourceTracker.h"
 
 namespace DX12
 {
@@ -249,6 +250,8 @@ namespace DX12
 			&resource_desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&buffer)));
 		buffer->SetName(name);
 
+		ResourceTracker::TrackResource(buffer, D3D12_RESOURCE_STATE_COMMON);
+
 		return buffer;
 	}
 
@@ -274,11 +277,13 @@ namespace DX12
 			&resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&buffer)));
 		buffer->SetName(name);
 
+		ResourceTracker::TrackResource(buffer, D3D12_RESOURCE_STATE_GENERIC_READ);
+
 		return buffer;
 	}
 
 	ID3D12Resource* CreateTexture(const wchar_t* name, DXGI_FORMAT format, uint32_t width, uint32_t height,
-		const D3D12_CLEAR_VALUE* clear_value, D3D12_RESOURCE_STATES initial_state, D3D12_RESOURCE_FLAGS flags)
+		D3D12_RESOURCE_STATES initial_state, const D3D12_CLEAR_VALUE* clear_value, D3D12_RESOURCE_FLAGS flags)
 	{
 		D3D12_HEAP_PROPERTIES heap_props = {};
 		heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
@@ -299,6 +304,8 @@ namespace DX12
 		DX_CHECK_HR(d3d_state.device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE,
 			&resource_desc, initial_state, clear_value, IID_PPV_ARGS(&texture)));
 		texture->SetName(name);
+
+		ResourceTracker::TrackResource(texture, initial_state);
 
 		return texture;
 	}

@@ -27,7 +27,7 @@ struct Model
 namespace AssetManager
 {
 
-	void Init(LinearAllocator* alloc);
+	void Init();
 	void Exit();
 
 	void LoadTexture(const char* filepath);

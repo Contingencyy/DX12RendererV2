@@ -12,6 +12,12 @@ struct MemoryStatistics
 	size_t total_deallocated_bytes;
 	size_t total_committed_bytes;
 	size_t total_decommitted_bytes;
+
+	void Reset()
+	{
+		total_allocated_bytes = total_deallocated_bytes =
+			total_committed_bytes = total_decommitted_bytes = 0;
+	}
 };
 
 extern MemoryStatistics g_global_memory_stats;
@@ -62,7 +68,7 @@ public:
 
 	~MemoryScope()
 	{
-		// Call constructors
+		// Call destructors
 		while (m_destructor_list)
 		{
 			Destructor* destructor = m_destructor_list;
