@@ -90,7 +90,7 @@ struct D3DState
 
 	// Adapter and device
 	IDXGIAdapter4* adapter;
-	DXGI_ADAPTER_DESC adapter_desc;
+	DXGI_ADAPTER_DESC1 adapter_desc;
 	ID3D12Device8* device;
 
 	// Swap chain

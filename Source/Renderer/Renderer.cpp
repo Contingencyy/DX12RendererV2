@@ -140,7 +140,7 @@ namespace Renderer
 			{
 				max_dedicated_video_memory = adapter_desc.DedicatedVideoMemory;
 				DX_CHECK_HR(dxgi_adapter->QueryInterface(IID_PPV_ARGS(&d3d_state.adapter)));
-				DX_CHECK_HR(d3d_state.adapter->GetDesc(&d3d_state.adapter_desc));
+				DX_CHECK_HR(dxgi_adapter->GetDesc1(&d3d_state.adapter_desc));
 				DX_RELEASE_INTERFACE(d3d_state.adapter);
 			}
 		}
@@ -324,7 +324,9 @@ namespace Renderer
 		d3d_state.render_width = new_width;
 		d3d_state.render_height = new_height;
 
-		DX_RELEASE_OBJECT(d3d_state.depth_buffer);
+		// Release all resolution dependent resources
+		ResourceTracker::ReleaseResource(d3d_state.depth_buffer);
+
 		D3D12_CLEAR_VALUE clear_value = {};
 		clear_value.Format = DXGI_FORMAT_D32_FLOAT;
 		clear_value.DepthStencil.Depth = 1.0;
@@ -374,6 +376,7 @@ namespace Renderer
 		d3d_state.descriptor_heap_cbv_srv_uav->Release(d3d_state.reserved_cbv_srv_uavs);
 
 		d3d_state.upload_buffer->Unmap(0, nullptr);
+		// NOTE: Back buffers have the same ref count, so we only need to release one of them fully to release the other two
 		DX_RELEASE_OBJECT(GetFrameContextCurrent()->back_buffer);
 
 		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)

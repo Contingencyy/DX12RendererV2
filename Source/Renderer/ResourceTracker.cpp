@@ -36,7 +36,7 @@ namespace ResourceTracker
 			{
 				continue;
 			}
-
+			
 			DX_RELEASE_OBJECT(node->value.resource);
 		}
 
@@ -63,7 +63,6 @@ namespace ResourceTracker
 
 		if (tracked_resource)
 		{
-			tracked_resource->resource->Unmap(0, nullptr);
 			DX_RELEASE_OBJECT(tracked_resource->resource);
 		}
 	}
