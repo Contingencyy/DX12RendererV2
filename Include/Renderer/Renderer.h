@@ -1,5 +1,6 @@
 #pragma once
 #include "Containers/ResourceSlotmap.h"
+#include "AssetManager.h"
 
 namespace Renderer
 {
@@ -13,8 +14,9 @@ namespace Renderer
 
 	enum TextureFormat
 	{
-		TextureFormat_RGBA8,
-		TextureFormat_D32
+		TextureFormat_RGBA8_Unorm,
+		TextureFormat_RGBA16_Float,
+		TextureFormat_D32_Float
 	};
 
 	struct UploadTextureParams
@@ -31,6 +33,8 @@ namespace Renderer
 	{
 		DXMath::Vec3 pos;
 		DXMath::Vec2 uv;
+		DXMath::Vec3 normal;
+		DXMath::Vec4 tangent;
 	};
 
 	struct UploadMeshParams
@@ -49,7 +53,7 @@ namespace Renderer
 	void RenderFrame();
 	void EndFrame();
 
-	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle, const Mat4x4& transform);
+	void RenderMesh(ResourceHandle mesh_handle, const Material& material, const Mat4x4& transform);
 
 	ResourceHandle UploadTexture(const UploadTextureParams& params);
 	ResourceHandle UploadMesh(const UploadMeshParams& params);

@@ -18,6 +18,11 @@ struct DescriptorAllocation
 	{
 		return { gpu.ptr + offset * descriptor_increment_size };
 	}
+
+	uint32_t GetDescriptorHeapIndex(uint32_t offset = 0)
+	{
+		return descriptor_heap_index + offset;
+	}
 };
 
 class DescriptorHeap

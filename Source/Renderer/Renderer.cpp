@@ -37,7 +37,7 @@ namespace Renderer
 	struct RenderMeshData
 	{
 		ResourceHandle mesh_handle;
-		ResourceHandle texture_handle;
+		Material material;
 	};
 
 	struct InternalData
@@ -48,7 +48,10 @@ namespace Renderer
 		ResourceSlotmap<MeshResource>* mesh_slotmap;
 		ResourceSlotmap<TextureResource>* texture_slotmap;
 
-		ResourceHandle default_white_texture;
+		TextureResource* default_white_texture;
+		ResourceHandle default_white_texture_handle;
+		TextureResource* default_normal_texture;
+		ResourceHandle default_normal_texture_handle;
 
 		RenderMeshData* render_mesh_data;
 
@@ -65,8 +68,11 @@ namespace Renderer
 	{
 		switch (format)
 		{
-		case TextureFormat_RGBA8:
+		case TextureFormat_RGBA8_Unorm:
+		case TextureFormat_D32_Float:
 			return 4;
+		case TextureFormat_RGBA16_Float:
+			return 8;
 		}
 	}
 
@@ -74,9 +80,11 @@ namespace Renderer
 	{
 		switch (format)
 		{
-		case TextureFormat_RGBA8:
+		case TextureFormat_RGBA8_Unorm:
 			return DXGI_FORMAT_R8G8B8A8_UNORM;
-		case TextureFormat_D32:
+		case TextureFormat_RGBA16_Float:
+			return DXGI_FORMAT_R16G16B16A16_FLOAT;
+		case TextureFormat_D32_Float:
 			return DXGI_FORMAT_D32_FLOAT;
 		}
 	}
@@ -89,6 +97,48 @@ namespace Renderer
 	static D3DState::FrameContext* GetFrameContext(uint32_t back_buffer_idx)
 	{
 		return &d3d_state.frame_ctx[back_buffer_idx];
+	}
+
+	static void CreateRenderTargets()
+	{
+		// Create HDR render target
+		{
+			D3D12_CLEAR_VALUE clear_value = {};
+			clear_value.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+			clear_value.Color[0] = clear_value.Color[2] = clear_value.Color[3] = 1.0;
+			clear_value.Color[1] = 0.0;
+
+			d3d_state.hdr_render_target = DX12::CreateTexture(L"HDR render target", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
+				D3D12_RESOURCE_STATE_COMMON, &clear_value, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+			DX12::CreateTextureRTV(d3d_state.hdr_render_target, d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_HDRRenderTarget), clear_value.Format);
+			DX12::CreateTextureSRV(d3d_state.hdr_render_target, d3d_state.reserved_cbv_srv_uavs.GetCPUHandle(ReservedDescriptorSRV_HDRRenderTarget),
+				clear_value.Format);
+		}
+
+		// Create SDR render target
+		{
+			D3D12_CLEAR_VALUE clear_value = {};
+			clear_value.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			clear_value.Color[0] = clear_value.Color[2] = clear_value.Color[3] = 1.0;
+			clear_value.Color[1] = 0.0;
+
+			d3d_state.sdr_render_target = DX12::CreateTexture(L"SDR render target", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
+				D3D12_RESOURCE_STATE_COMMON, &clear_value, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+			DX12::CreateTextureRTV(d3d_state.sdr_render_target, d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_SDRRenderTarget), clear_value.Format);
+			DX12::CreateTextureUAV(d3d_state.sdr_render_target, d3d_state.reserved_cbv_srv_uavs.GetCPUHandle(ReservedDescriptorUAV_SDRRenderTarget), clear_value.Format);
+		}
+
+		// Create depth buffer
+		{
+			D3D12_CLEAR_VALUE clear_value = {};
+			clear_value.Format = DXGI_FORMAT_D32_FLOAT;
+			clear_value.DepthStencil.Depth = 1.0;
+			clear_value.DepthStencil.Stencil = 0;
+
+			d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
+				D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear_value, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
+			DX12::CreateTextureDSV(d3d_state.depth_buffer, d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer), clear_value.Format);
+		}
 	}
 
 	static void InitD3DState(const RendererInitParams& params)
@@ -200,14 +250,16 @@ namespace Renderer
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 
 		// Create descriptor heaps
-		d3d_state.descriptor_heap_rtv = data.memory_scope.AllocateConstruct<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
-		d3d_state.descriptor_heap_dsv = data.memory_scope.AllocateConstruct<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
-		d3d_state.descriptor_heap_cbv_srv_uav = data.memory_scope.AllocateConstruct<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV);
+		d3d_state.descriptor_heap_rtv = data.memory_scope.New<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX_DESCRIPTOR_HEAP_SIZE_RTV);
+		d3d_state.descriptor_heap_dsv = data.memory_scope.New<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, DX_DESCRIPTOR_HEAP_SIZE_DSV);
+		d3d_state.descriptor_heap_cbv_srv_uav = data.memory_scope.New<DescriptorHeap>(&data.memory_scope, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV);
 
 		// Allocate reserved descriptors
 		d3d_state.reserved_rtvs = d3d_state.descriptor_heap_rtv->Allocate(ReservedDescriptorRTV_Count);
 		d3d_state.reserved_dsvs = d3d_state.descriptor_heap_dsv->Allocate(ReservedDescriptorDSV_Count);
 		d3d_state.reserved_cbv_srv_uavs = d3d_state.descriptor_heap_cbv_srv_uav->Allocate(ReservedDescriptorCBVSRVUAV_Count);
+
+		CreateRenderTargets();
 
 		// Create command queue, list, and allocator
 		//d3d_state.command_queue_direct = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
@@ -233,16 +285,6 @@ namespace Renderer
 		}
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.frame_fence)), "Failed to create fence");
 
-		// Create depth buffer
-		D3D12_CLEAR_VALUE clear_value = {};
-		clear_value.Format = DXGI_FORMAT_D32_FLOAT;
-		clear_value.DepthStencil.Depth = 1.0;
-		clear_value.DepthStencil.Stencil = 0;
-		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear_value, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-
-		DX12::CreateTextureDSV(d3d_state.depth_buffer, d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer), DXGI_FORMAT_D32_FLOAT);
-
 		// Create the DXC compiler state
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
 		DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&d3d_state.dxc_utils));
@@ -259,9 +301,72 @@ namespace Renderer
 
 	static void InitPipelines()
 	{
-		d3d_state.default_raster_pipeline.root_sig = DX12::CreateRootSignature();
-		d3d_state.default_raster_pipeline.pipeline_state = DX12::CreatePipelineState(d3d_state.default_raster_pipeline.root_sig,
-			L"Include/Shaders/Default_VS_PS.hlsl", L"Include/Shaders/Default_VS_PS.hlsl");
+		// Default graphics pipeline
+		{
+			D3D12_ROOT_PARAMETER1 root_params[1] = {};
+			root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+			root_params[0].Descriptor.ShaderRegister = 0;
+			root_params[0].Descriptor.RegisterSpace = 0;
+			root_params[0].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
+			root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+			D3D12_STATIC_SAMPLER_DESC static_samplers[1] = {};
+			static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
+			static_samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+			static_samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+			static_samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+			static_samplers[0].MipLODBias = 0;
+			static_samplers[0].MaxAnisotropy = 0;
+			static_samplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+			static_samplers[0].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+			static_samplers[0].MinLOD = 0.0f;
+			static_samplers[0].MaxLOD = D3D12_FLOAT32_MAX;
+			static_samplers[0].ShaderRegister = 0;
+			static_samplers[0].RegisterSpace = 0;
+			static_samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+			D3D12_VERSIONED_ROOT_SIGNATURE_DESC root_sig_desc = {};
+			root_sig_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+			root_sig_desc.Desc_1_1.NumParameters = DX_ARRAY_SIZE(root_params);
+			root_sig_desc.Desc_1_1.pParameters = root_params;
+			root_sig_desc.Desc_1_1.NumStaticSamplers = DX_ARRAY_SIZE(static_samplers);
+			root_sig_desc.Desc_1_1.pStaticSamplers = static_samplers;
+			root_sig_desc.Desc_1_1.Flags =
+				D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
+				D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+			d3d_state.default_raster_pipeline.d3d_root_sig = DX12::CreateRootSignature(root_sig_desc);
+			d3d_state.default_raster_pipeline.d3d_pso = DX12::CreateGraphicsPipelineState(
+				d3d_state.default_raster_pipeline.d3d_root_sig,
+				d3d_state.hdr_render_target->GetDesc().Format,
+				d3d_state.depth_buffer->GetDesc().Format,
+				L"Include/Shaders/Default_VS_PS.hlsl",
+				L"Include/Shaders/Default_VS_PS.hlsl"
+			);
+		}
+
+		// Post process compute pipeline
+		{
+			D3D12_ROOT_PARAMETER1 root_params[1] = {};
+			root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+			root_params[0].Constants.Num32BitValues = 2;
+			root_params[0].Constants.ShaderRegister = 0;
+			root_params[0].Constants.RegisterSpace = 0;
+			root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+			D3D12_VERSIONED_ROOT_SIGNATURE_DESC root_sig_desc = {};
+			root_sig_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
+			root_sig_desc.Desc_1_1.NumParameters = DX_ARRAY_SIZE(root_params);
+			root_sig_desc.Desc_1_1.pParameters = root_params;
+			root_sig_desc.Desc_1_1.NumStaticSamplers = 0;
+			root_sig_desc.Desc_1_1.pStaticSamplers = nullptr;
+			root_sig_desc.Desc_1_1.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
+
+			d3d_state.post_process_pipeline.d3d_root_sig = DX12::CreateRootSignature(root_sig_desc);
+			d3d_state.post_process_pipeline.d3d_pso = DX12::CreateComputePipelineState(
+				d3d_state.post_process_pipeline.d3d_root_sig, L"Include/Shaders/PostProcess_CS.hlsl"
+			);
+		}
 	}
 
 	static void InitDearImGui()
@@ -285,7 +390,7 @@ namespace Renderer
 
 		ImGui_ImplWin32_Init(hWnd);
 		ImGui_ImplDX12_Init(d3d_state.device, DX_BACK_BUFFER_COUNT, swap_chain_desc.BufferDesc.Format, d3d_state.descriptor_heap_cbv_srv_uav->GetD3D12DescriptorHeap(),
-			d3d_state.reserved_cbv_srv_uavs.GetCPUHandle(ReservedDescriptorCBVSRVUAV_DearImGui), d3d_state.reserved_cbv_srv_uavs.GetGPUHandle(ReservedDescriptorCBVSRVUAV_DearImGui));
+			d3d_state.reserved_cbv_srv_uavs.GetCPUHandle(ReservedDescriptorSRV_DearImGui), d3d_state.reserved_cbv_srv_uavs.GetGPUHandle(ReservedDescriptorSRV_DearImGui));
 	}
 
 	static void ResizeBackBuffers()
@@ -319,31 +424,12 @@ namespace Renderer
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
 	}
 
-	static void ResizeRenderResolution(uint32_t new_width, uint32_t new_height)
-	{
-		d3d_state.render_width = new_width;
-		d3d_state.render_height = new_height;
-
-		// Release all resolution dependent resources
-		ResourceTracker::ReleaseResource(d3d_state.depth_buffer);
-
-		D3D12_CLEAR_VALUE clear_value = {};
-		clear_value.Format = DXGI_FORMAT_D32_FLOAT;
-		clear_value.DepthStencil.Depth = 1.0;
-		clear_value.DepthStencil.Stencil = 0;
-		d3d_state.depth_buffer = DX12::CreateTexture(L"Depth buffer", clear_value.Format, d3d_state.render_width, d3d_state.render_height,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE, &clear_value, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
-
-		// Do not forget to create a new depth stencil view for the depth buffer
-		DX12::CreateTextureDSV(d3d_state.depth_buffer, d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer), DXGI_FORMAT_D32_FLOAT);
-	}
-
 	void Init(const RendererInitParams& params)
 	{
 		// Initialize slotmaps
 		data.memory_scope = MemoryScope(&data.alloc, data.alloc.at_ptr);
-		data.texture_slotmap = data.memory_scope.AllocateConstruct<ResourceSlotmap<TextureResource>>(&data.memory_scope);
-		data.mesh_slotmap = data.memory_scope.AllocateConstruct<ResourceSlotmap<MeshResource>>(&data.memory_scope);
+		data.texture_slotmap = data.memory_scope.New<ResourceSlotmap<TextureResource>>(&data.memory_scope);
+		data.mesh_slotmap = data.memory_scope.New<ResourceSlotmap<MeshResource>>(&data.memory_scope);
 		data.render_mesh_data = data.memory_scope.Allocate<RenderMeshData>(1000);
 
 		ResourceTracker::Init(&data.memory_scope);
@@ -351,16 +437,38 @@ namespace Renderer
 		InitPipelines();
 		InitDearImGui();
 
+		// ------------------------------------------------------------------------------------
 		// Default textures
+
 		{
+			// Default white texture
 			uint32_t white_texture_data = 0xFFFFFFFF;
 			UploadTextureParams upload_texture_params = {};
 			upload_texture_params.width = 1;
 			upload_texture_params.height = 1;
-			upload_texture_params.format = TextureFormat_RGBA8;
+			upload_texture_params.format = TextureFormat_RGBA8_Unorm;
 			upload_texture_params.bytes = (uint8_t*)&white_texture_data;
 			upload_texture_params.name = "Default white texture";
-			data.default_white_texture = Renderer::UploadTexture(upload_texture_params);
+			data.default_white_texture_handle = Renderer::UploadTexture(upload_texture_params);
+			data.default_white_texture = data.texture_slotmap->Find(data.default_white_texture_handle);
+		}
+
+		{
+			// Default normal texture
+			uint8_t r = 127;
+			uint8_t g = 127;
+			uint8_t b = 255;
+			uint8_t a = 255;
+			uint32_t normal_texture_data = (a << 24) | (b << 16) | (g << 8) | (r << 0);
+
+			UploadTextureParams upload_texture_params = {};
+			upload_texture_params.width = 1;
+			upload_texture_params.height = 1;
+			upload_texture_params.format = TextureFormat_RGBA8_Unorm;
+			upload_texture_params.bytes = (uint8_t*)&normal_texture_data;
+			upload_texture_params.name = "Default normal texture";
+			data.default_normal_texture_handle = Renderer::UploadTexture(upload_texture_params);
+			data.default_normal_texture = data.texture_slotmap->Find(data.default_normal_texture_handle);
 		}
 
 		d3d_state.initialized = true;
@@ -394,8 +502,10 @@ namespace Renderer
 		// Releases all tracked ID3D12 resources (does not call ID3D12Resource::Unmap)
 		ResourceTracker::Exit();
 
-		DX_RELEASE_OBJECT(d3d_state.default_raster_pipeline.root_sig);
-		DX_RELEASE_OBJECT(d3d_state.default_raster_pipeline.pipeline_state);
+		DX_RELEASE_OBJECT(d3d_state.default_raster_pipeline.d3d_root_sig);
+		DX_RELEASE_OBJECT(d3d_state.default_raster_pipeline.d3d_pso);
+		DX_RELEASE_OBJECT(d3d_state.post_process_pipeline.d3d_root_sig);
+		DX_RELEASE_OBJECT(d3d_state.post_process_pipeline.d3d_pso);
 
 		DX_RELEASE_OBJECT(d3d_state.dxc_include_handler);
 		DX_RELEASE_OBJECT(d3d_state.dxc_utils);
@@ -467,39 +577,36 @@ namespace Renderer
 		// Create the render target view for the current back buffer
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
-
-		D3D12_CPU_DESCRIPTOR_HANDLE rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + d3d_state.current_back_buffer_idx);
-		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer);
-		ID3D12Resource* back_buffer = frame_ctx->back_buffer;
-		
-		// ----------------------------------------------------------------------------------
-		// Transition the back buffer to the render target state, and clear it
-
 		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
 
-		D3D12_RESOURCE_BARRIER render_target_barrier = DX12::TransitionBarrier(back_buffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		cmd_list->ResourceBarrier(1, &render_target_barrier);
+		D3D12_RESOURCE_BARRIER default_barriers[] = {
+			ResourceTracker::TransitionBarrier(d3d_state.hdr_render_target, D3D12_RESOURCE_STATE_RENDER_TARGET),
+			//ResourceTracker::TransitionBarrier(d3d_state.depth_buffer, D3D12_RESOURCE_STATE_DEPTH_WRITE)
+		};
+		cmd_list->ResourceBarrier(DX_ARRAY_SIZE(default_barriers), default_barriers);
 
-		float clear_color[4] = { 1, 0, 1, 1 };
-		cmd_list->ClearRenderTargetView(rtv_handle, clear_color, 0, nullptr);
+		D3D12_CPU_DESCRIPTOR_HANDLE hdr_rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_HDRRenderTarget);
+		D3D12_CPU_DESCRIPTOR_HANDLE dsv_handle = d3d_state.reserved_dsvs.GetCPUHandle(ReservedDescriptorDSV_DepthBuffer);
+		float clear_color[4] = { 1.0, 0.0, 1.0, 1.0 };
+		cmd_list->ClearRenderTargetView(hdr_rtv_handle, clear_color, 0, nullptr);
 		cmd_list->ClearDepthStencilView(dsv_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0, 0, 0, nullptr);
 
 		// ----------------------------------------------------------------------------------
-		// Draw a triangle
+		// Default geometry and shading render pass
 
 		D3D12_VIEWPORT viewport = { 0.0, 0.0, d3d_state.render_width, d3d_state.render_height, 0.0, 1.0 };
 		D3D12_RECT scissor_rect = { 0, 0, LONG_MAX, LONG_MAX };
 
 		cmd_list->RSSetViewports(1, &viewport);
 		cmd_list->RSSetScissorRects(1, &scissor_rect);
-		cmd_list->OMSetRenderTargets(1, &rtv_handle, FALSE, &dsv_handle);
+		cmd_list->OMSetRenderTargets(1, &hdr_rtv_handle, FALSE, &dsv_handle);
 
 		// NOTE: Before binding the root signature, we need to bind the descriptor heap
 		ID3D12DescriptorHeap* const descriptor_heaps = { d3d_state.descriptor_heap_cbv_srv_uav->GetD3D12DescriptorHeap() };
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heaps);
 
-		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.root_sig);
-		cmd_list->SetPipelineState(d3d_state.default_raster_pipeline.pipeline_state);
+		cmd_list->SetGraphicsRootSignature(d3d_state.default_raster_pipeline.d3d_root_sig);
+		cmd_list->SetPipelineState(d3d_state.default_raster_pipeline.d3d_pso);
 
 		cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
@@ -509,7 +616,6 @@ namespace Renderer
 		{
 			RenderMeshData* mesh_data = &data.render_mesh_data[mesh];
 			MeshResource* mesh_resource = data.mesh_slotmap->Find(mesh_data->mesh_handle);
-			TextureResource* texture_resource = data.texture_slotmap->Find(mesh_data->texture_handle);
 			
 			cmd_list->IASetVertexBuffers(0, 1, &mesh_resource->vbv);
 			cmd_list->IASetIndexBuffer(&mesh_resource->ibv);
@@ -519,6 +625,27 @@ namespace Renderer
 			data.stats.total_vertex_count += mesh_resource->ibv.SizeInBytes / 4;
 			data.stats.total_triangle_count += mesh_resource->ibv.SizeInBytes / 4 / 3;
 		}
+
+		// ----------------------------------------------------------------------------------
+		// Post-processing pass
+
+		D3D12_RESOURCE_BARRIER post_process_barriers[] = {
+			ResourceTracker::TransitionBarrier(d3d_state.hdr_render_target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+			ResourceTracker::TransitionBarrier(d3d_state.sdr_render_target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+		};
+		cmd_list->ResourceBarrier(DX_ARRAY_SIZE(post_process_barriers), post_process_barriers);
+
+		cmd_list->SetComputeRootSignature(d3d_state.post_process_pipeline.d3d_root_sig);
+		cmd_list->SetPipelineState(d3d_state.post_process_pipeline.d3d_pso);
+
+		uint32_t hdr_srv_index = d3d_state.reserved_cbv_srv_uavs.GetDescriptorHeapIndex(ReservedDescriptorSRV_HDRRenderTarget);
+		uint32_t sdr_uav_index = d3d_state.reserved_cbv_srv_uavs.GetDescriptorHeapIndex(ReservedDescriptorUAV_SDRRenderTarget);
+		cmd_list->SetComputeRoot32BitConstant(0, hdr_srv_index, 0);
+		cmd_list->SetComputeRoot32BitConstant(0, sdr_uav_index, 1);
+
+		uint32_t num_dispatch_threads_x = DX_ALIGN_POW2(d3d_state.render_width, 8) / 8;
+		uint32_t num_dispatch_threads_y = DX_ALIGN_POW2(d3d_state.render_height, 8) / 8;
+		cmd_list->Dispatch(num_dispatch_threads_x, num_dispatch_threads_y, 1);
 	}
 
 	void EndFrame()
@@ -528,7 +655,17 @@ namespace Renderer
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		ID3D12GraphicsCommandList6* cmd_list = frame_ctx->command_list;
-		D3D12_RESOURCE_BARRIER present_barrier = DX12::TransitionBarrier(frame_ctx->back_buffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+
+		D3D12_RESOURCE_BARRIER resolve_backbuffer_barriers[] = {
+			ResourceTracker::TransitionBarrier(d3d_state.sdr_render_target, D3D12_RESOURCE_STATE_COPY_SOURCE),
+			DX12::TransitionBarrier(frame_ctx->back_buffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
+		};
+		cmd_list->ResourceBarrier(DX_ARRAY_SIZE(resolve_backbuffer_barriers), resolve_backbuffer_barriers);
+		
+		cmd_list->CopyResource(frame_ctx->back_buffer, d3d_state.sdr_render_target);
+
+		D3D12_RESOURCE_BARRIER present_barrier = DX12::TransitionBarrier(frame_ctx->back_buffer,
+			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
 		cmd_list->ResourceBarrier(1, &present_barrier);
 
 		// ----------------------------------------------------------------------------------
@@ -557,20 +694,38 @@ namespace Renderer
 		data.stats = { 0 };
 	}
 
-	void RenderMesh(ResourceHandle mesh_handle, ResourceHandle texture_handle, const Mat4x4& transform)
+	void RenderMesh(ResourceHandle mesh_handle, const Material& material, const Mat4x4& transform)
 	{
 		DX_ASSERT(data.stats.mesh_count < MAX_RENDER_MESHES);
 		data.render_mesh_data[data.stats.mesh_count] =
 		{
 			// TODO: Default mesh handle? (e.g. Cube)
 			.mesh_handle = mesh_handle,
-			.texture_handle = DX_RESOURCE_HANDLE_VALID(texture_handle) ? texture_handle : data.default_white_texture
+			.material = material
 		};
 
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
-		TextureResource* texture_resource = data.texture_slotmap->Find(data.render_mesh_data[data.stats.mesh_count].texture_handle);
+
+		TextureResource* base_color_texture = data.texture_slotmap->Find(data.render_mesh_data[data.stats.mesh_count].material.base_color_texture_handle);
+		if (!base_color_texture)
+		{
+			base_color_texture = data.default_white_texture;
+		}
+		TextureResource* normal_texture = data.texture_slotmap->Find(data.render_mesh_data[data.stats.mesh_count].material.normal_texture_handle);
+		if (!normal_texture)
+		{
+			normal_texture = data.default_normal_texture;
+		}
+		TextureResource* metallic_roughness_texture = data.texture_slotmap->Find(data.render_mesh_data[data.stats.mesh_count].material.metallic_roughness_texture_handle);
+		if (!metallic_roughness_texture)
+		{
+			metallic_roughness_texture = data.default_white_texture;
+		}
+
 		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].transform = transform;
-		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].base_color_index = texture_resource->srv.descriptor_heap_index;
+		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].base_color_texture_index = base_color_texture->srv.descriptor_heap_index;
+		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].normal_texture_index = normal_texture->srv.descriptor_heap_index;
+		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].metallic_roughness_texture_index = metallic_roughness_texture->srv.descriptor_heap_index;
 		data.stats.mesh_count++;
 	}
 
@@ -702,9 +857,20 @@ namespace Renderer
 			d3d_state.render_height != new_height)
 		{
 			Flush();
+
 			// NOTE: We always have to resize the back buffers to the window rect
 			// But for now we also resize the actual render resolution
-			ResizeRenderResolution(new_width, new_height);
+			d3d_state.render_width = new_width;
+			d3d_state.render_height = new_height;
+
+			// Release all resolution dependent resources
+			// TODO: Releasing these causes a crash, because they all end up in the same slot in the hashmap somehow
+			ResourceTracker::ReleaseResource(d3d_state.hdr_render_target);
+			ResourceTracker::ReleaseResource(d3d_state.sdr_render_target);
+			ResourceTracker::ReleaseResource(d3d_state.depth_buffer);
+
+			// Recreate the render targets with the new resolution, and resize the swapchain back buffers
+			CreateRenderTargets();
 			ResizeBackBuffers();
 		}
 	}
@@ -776,7 +942,10 @@ namespace Renderer
 
 		ImGui::Render();
 
-		D3D12_CPU_DESCRIPTOR_HANDLE imgui_rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + d3d_state.current_back_buffer_idx);
+		D3D12_RESOURCE_BARRIER imgui_rt_barrier = ResourceTracker::TransitionBarrier(d3d_state.sdr_render_target, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		cmd_list->ResourceBarrier(1, &imgui_rt_barrier);
+
+		D3D12_CPU_DESCRIPTOR_HANDLE imgui_rtv_handle = d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_SDRRenderTarget);
 		ID3D12DescriptorHeap* descriptor_heap = d3d_state.descriptor_heap_cbv_srv_uav->GetD3D12DescriptorHeap();
 		cmd_list->OMSetRenderTargets(1, &imgui_rtv_handle, FALSE, nullptr);
 		cmd_list->SetDescriptorHeaps(1, &descriptor_heap);

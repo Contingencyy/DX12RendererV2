@@ -11,7 +11,7 @@ namespace Scene
 	{
 		for (uint32_t mesh_idx = 0; mesh_idx < node.num_meshes; ++mesh_idx)
 		{
-			Renderer::RenderMesh(node.mesh_handles[mesh_idx], node.texture_handles[mesh_idx], current_transform);
+			Renderer::RenderMesh(node.mesh_handles[mesh_idx], node.materials[mesh_idx], current_transform);
 		}
 
 		for (uint32_t child_idx = 0; child_idx < node.num_children; ++child_idx)

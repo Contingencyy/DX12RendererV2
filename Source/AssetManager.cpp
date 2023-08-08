@@ -4,8 +4,108 @@
 #include "Containers/Hashmap.h"
 #include "Renderer/Renderer.h"
 
+#include "mikkt/mikktspace.h"
+
 #define CGLTF_IMPLEMENTATION
 #include "cgltf/cgltf.h"
+
+class TangentCalculator
+{
+public:
+    TangentCalculator()
+    {
+        m_mikkt_interface.m_getNumFaces = GetNumFaces;
+        m_mikkt_interface.m_getNumVerticesOfFace = GetNumVerticesOfFace;
+
+        m_mikkt_interface.m_getNormal = GetNormal;
+        m_mikkt_interface.m_getPosition = GetPosition;
+        m_mikkt_interface.m_getTexCoord = GetTexCoord;
+        m_mikkt_interface.m_setTSpaceBasic = SetTSpaceBasic;
+
+        m_mikkt_context.m_pInterface = &m_mikkt_interface;
+    }
+
+    void Calculate(Renderer::UploadMeshParams* loadedMesh)
+    {
+        m_mikkt_context.m_pUserData = loadedMesh;
+        genTangSpaceDefault(&m_mikkt_context);
+    }
+
+private:
+    static int GetNumFaces(const SMikkTSpaceContext* context)
+    {
+        Renderer::UploadMeshParams* mesh = static_cast<Renderer::UploadMeshParams*>(context->m_pUserData);
+        return mesh->num_indices / 3;
+    }
+
+    static int GetVertexIndex(const SMikkTSpaceContext* context, int iFace, int iVert)
+    {
+        Renderer::UploadMeshParams* mesh = static_cast<Renderer::UploadMeshParams*>(context->m_pUserData);
+
+        uint32_t face_size = GetNumVerticesOfFace(context, iFace);
+        uint32_t indices_index = (iFace * face_size) + iVert;
+
+        return mesh->indices[indices_index];
+    }
+
+    static int GetNumVerticesOfFace(const SMikkTSpaceContext* context, int iFace)
+    {
+        // We only expect triangles (for now), so always return 3
+        return 3;
+    }
+
+    static void GetPosition(const SMikkTSpaceContext* context, float outpos[], int iFace, int iVert)
+    {
+        Renderer::UploadMeshParams* mesh = static_cast<Renderer::UploadMeshParams*>(context->m_pUserData);
+
+        uint32_t index = GetVertexIndex(context, iFace, iVert);
+        const Renderer::Vertex& vertex = mesh->vertices[index];
+
+        outpos[0] = vertex.pos.x;
+        outpos[1] = vertex.pos.y;
+        outpos[2] = vertex.pos.z;
+    }
+
+    static void GetNormal(const SMikkTSpaceContext* context, float outnormal[], int iFace, int iVert)
+    {
+        Renderer::UploadMeshParams* mesh = static_cast<Renderer::UploadMeshParams*>(context->m_pUserData);
+
+        uint32_t index = GetVertexIndex(context, iFace, iVert);
+        const Renderer::Vertex& vertex = mesh->vertices[index];
+
+        outnormal[0] = vertex.normal.x;
+        outnormal[1] = vertex.normal.y;
+        outnormal[2] = vertex.normal.z;
+    }
+
+    static void GetTexCoord(const SMikkTSpaceContext* context, float outuv[], int iFace, int iVert)
+    {
+        Renderer::UploadMeshParams* mesh = static_cast<Renderer::UploadMeshParams*>(context->m_pUserData);
+
+        uint32_t index = GetVertexIndex(context, iFace, iVert);
+        const Renderer::Vertex& vertex = mesh->vertices[index];
+
+        outuv[0] = vertex.uv.x;
+        outuv[1] = vertex.uv.y;
+    }
+
+    static void SetTSpaceBasic(const SMikkTSpaceContext* context, const float tangentu[], float fSign, int iFace, int iVert)
+    {
+        Renderer::UploadMeshParams* mesh = static_cast<Renderer::UploadMeshParams*>(context->m_pUserData);
+
+        uint32_t index = GetVertexIndex(context, iFace, iVert);
+        Renderer::Vertex& vertex = mesh->vertices[index];
+
+        vertex.tangent.x = tangentu[0];
+        vertex.tangent.y = tangentu[1];
+        vertex.tangent.z = tangentu[2];
+    }
+
+private:
+    SMikkTSpaceInterface m_mikkt_interface = {};
+    SMikkTSpaceContext m_mikkt_context = {};
+
+};
     
 template<typename T>
 static T* CGLTFGetDataPointer(const cgltf_accessor* accessor)
@@ -18,9 +118,9 @@ static T* CGLTFGetDataPointer(const cgltf_accessor* accessor)
     return (T*)base_ptr;
 }
 
-static size_t CGLTFImageIndex(const cgltf_data* data, const cgltf_image* texture)
+static size_t CGLTFImageIndex(const cgltf_data* data, const cgltf_image* image)
 {
-    return (size_t)(texture - data->images);
+    return (size_t)(image - data->images);
 }
 
 static size_t CGLTFMeshIndex(const cgltf_data* data, const cgltf_mesh* mesh)
@@ -94,14 +194,16 @@ namespace AssetManager
 
         Hashmap<const char*, ResourceHandle>* texture_assets_map;
         Hashmap<const char*, Model>* model_assets_map;
+
+        TangentCalculator tangent_calc;
     } static data;
 
     void Init()
     {
         data.memory_scope = MemoryScope(&data.alloc, data.alloc.at_ptr);
 
-        data.texture_assets_map = data.memory_scope.AllocateConstruct<Hashmap<const char*, ResourceHandle>>(&data.memory_scope, 1024);
-        data.model_assets_map = data.memory_scope.AllocateConstruct<Hashmap<const char*, Model>>(&data.memory_scope, 64);
+        data.texture_assets_map = data.memory_scope.New<Hashmap<const char*, ResourceHandle>>(&data.memory_scope, 1024);
+        data.model_assets_map = data.memory_scope.New<Hashmap<const char*, Model>>(&data.memory_scope, 64);
     }
 
     void Exit()
@@ -117,7 +219,7 @@ namespace AssetManager
         FileIO::LoadImageResult image = FileIO::LoadImage(filepath);
 
 		Renderer::UploadTextureParams texture_params = {};
-		texture_params.format = Renderer::TextureFormat_RGBA8;
+		texture_params.format = Renderer::TextureFormat_RGBA8_Unorm;
 		texture_params.width = image.width;
 		texture_params.height = image.height;
 		texture_params.bytes = image.bytes;
@@ -147,7 +249,7 @@ namespace AssetManager
         // Parse the CGLTF data - Materials and textures
         
         MemoryScope alloc_scope(&g_thread_alloc, g_thread_alloc.at_ptr);
-        ResourceHandle* texture_handles = alloc_scope.Allocate<ResourceHandle>(cgltf_data->materials_count);
+        ResourceHandle* texture_handles = alloc_scope.Allocate<ResourceHandle>(cgltf_data->images_count);
 
         for (uint32_t img_idx = 0; img_idx < cgltf_data->images_count; ++img_idx)
         {
@@ -208,6 +310,7 @@ namespace AssetManager
 
                 upload_mesh_params.num_vertices = primitive->attributes[0].data->count;
                 upload_mesh_params.vertices = alloc_scope.Allocate<Renderer::Vertex>(primitive->attributes[0].data->count);
+                bool calculate_tangents = true;
 
                 for (uint32_t attrib_idx = 0; attrib_idx < primitive->attributes_count; ++attrib_idx)
                 {
@@ -235,7 +338,34 @@ namespace AssetManager
                             upload_mesh_params.vertices[vert_idx].uv = data_uv[vert_idx];
                         }
                     } break;
+                    case cgltf_attribute_type_normal:
+                    {
+                        DX_ASSERT(attribute->data->type == cgltf_type_vec3);
+                        DXMath::Vec3* data_normal = CGLTFGetDataPointer<DXMath::Vec3>(attribute->data);
+
+                        for (uint32_t vert_idx = 0; vert_idx < attribute->data->count; ++vert_idx)
+                        {
+                            upload_mesh_params.vertices[vert_idx].normal = data_normal[vert_idx];
+                        }
+                    } break;
+                    case cgltf_attribute_type_tangent:
+                    {
+                        DX_ASSERT(attribute->data->type == cgltf_type_vec4);
+                        DXMath::Vec4* data_tangent = CGLTFGetDataPointer<DXMath::Vec4>(attribute->data);
+
+                        for (uint32_t vert_idx = 0; vert_idx < attribute->data->count; ++vert_idx)
+                        {
+                            upload_mesh_params.vertices[vert_idx].tangent = data_tangent[vert_idx];
+                        }
+
+                        calculate_tangents = false;
+                    } break;
                     }
+                }
+
+                if (calculate_tangents)
+                {
+                    data.tangent_calc.Calculate(&upload_mesh_params);
                 }
 
                 mesh_handles[mesh_handle_cur++] = Renderer::UploadMesh(upload_mesh_params);
@@ -260,7 +390,7 @@ namespace AssetManager
             {
                 node->num_meshes = cgltf_node->mesh->primitives_count;
                 node->mesh_handles = data.memory_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
-                node->texture_handles = data.memory_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
+                node->materials = data.memory_scope.Allocate<Material>(cgltf_node->mesh->primitives_count);
 
                 for (uint32_t prim_idx = 0; prim_idx < cgltf_node->mesh->primitives_count; ++prim_idx)
                 {
@@ -275,7 +405,24 @@ namespace AssetManager
                     // Note: The renderer will fall back to default textures if texture handles are invalid
                     if (primitive->material->pbr_metallic_roughness.base_color_texture.texture)
                     {
-                        node->texture_handles[prim_idx] = texture_handles[CGLTFImageIndex(cgltf_data, primitive->material->pbr_metallic_roughness.base_color_texture.texture->image)];
+                        if (primitive->material->pbr_metallic_roughness.base_color_texture.texture)
+                        {
+                            node->materials[prim_idx].base_color_texture_handle = texture_handles[CGLTFImageIndex(
+                                cgltf_data, primitive->material->pbr_metallic_roughness.base_color_texture.texture->image
+                            )];
+                        }
+                        if (primitive->material->normal_texture.texture)
+                        {
+                            node->materials[prim_idx].normal_texture_handle = texture_handles[CGLTFImageIndex(
+                                cgltf_data, primitive->material->normal_texture.texture->image
+                            )];
+                        }
+                        if (primitive->material->pbr_metallic_roughness.metallic_roughness_texture.texture)
+                        {
+                            node->materials[prim_idx].metallic_roughness_texture_handle = texture_handles[CGLTFImageIndex(
+                                cgltf_data, primitive->material->pbr_metallic_roughness.metallic_roughness_texture.texture->image
+                            )];
+                        }
                     }
                 }
             }

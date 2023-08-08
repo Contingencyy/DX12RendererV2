@@ -63,42 +63,10 @@ namespace DX12
 		return { descriptor_heap->GetGPUDescriptorHandleForHeapStart().ptr + offset * descriptor_increment_size };
 	}
 
-	ID3D12RootSignature* CreateRootSignature()
+	ID3D12RootSignature* CreateRootSignature(const D3D12_VERSIONED_ROOT_SIGNATURE_DESC& root_sig_desc)
 	{
-		D3D12_ROOT_PARAMETER1 root_params[1] = {};
-		root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		root_params[0].Descriptor.ShaderRegister = 0;
-		root_params[0].Descriptor.RegisterSpace = 0;
-		root_params[0].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
-		root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-
-		D3D12_STATIC_SAMPLER_DESC static_samplers[1] = {};
-		static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
-		static_samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		static_samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		static_samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		static_samplers[0].MipLODBias = 0;
-		static_samplers[0].MaxAnisotropy = 0;
-		static_samplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-		static_samplers[0].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-		static_samplers[0].MinLOD = 0.0f;
-		static_samplers[0].MaxLOD = D3D12_FLOAT32_MAX;
-		static_samplers[0].ShaderRegister = 0;
-		static_samplers[0].RegisterSpace = 0;
-		static_samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-		
-		D3D12_VERSIONED_ROOT_SIGNATURE_DESC versioned_root_sig_desc = {};
-		versioned_root_sig_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
-		versioned_root_sig_desc.Desc_1_1.NumParameters = DX_ARRAY_SIZE(root_params);
-		versioned_root_sig_desc.Desc_1_1.pParameters = root_params;
-		versioned_root_sig_desc.Desc_1_1.NumStaticSamplers = DX_ARRAY_SIZE(static_samplers);
-		versioned_root_sig_desc.Desc_1_1.pStaticSamplers = static_samplers;
-		versioned_root_sig_desc.Desc_1_1.Flags =
-			D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
 		ID3DBlob* serialized_root_sig, *error;
-		DX_CHECK_HR_ERR(D3D12SerializeVersionedRootSignature(&versioned_root_sig_desc, &serialized_root_sig, &error), "Failed to serialize versioned root signature");
+		DX_CHECK_HR_ERR(D3D12SerializeVersionedRootSignature(&root_sig_desc, &serialized_root_sig, &error), "Failed to serialize versioned root signature");
 		if (error)
 		{
 			DX_ASSERT(false && (char*)error->GetBufferPointer());
@@ -162,7 +130,8 @@ namespace DX12
 		return blob;
 	}
 
-	ID3D12PipelineState* CreatePipelineState(ID3D12RootSignature* root_sig, const wchar_t* vs_path, const wchar_t* ps_path)
+	ID3D12PipelineState* CreateGraphicsPipelineState(ID3D12RootSignature* root_sig, DXGI_FORMAT rt_format, DXGI_FORMAT ds_format,
+		const wchar_t* vs_path, const wchar_t* ps_path)
 	{
 		D3D12_RENDER_TARGET_BLEND_DESC rt_blend_desc = {};
 		rt_blend_desc.BlendEnable = TRUE;
@@ -180,11 +149,15 @@ namespace DX12
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 			{ "TRANSFORM", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 			{ "TRANSFORM", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 			{ "TRANSFORM", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 			{ "TRANSFORM", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 			{ "BASE_COLOR_TEXTURE", 0, DXGI_FORMAT_R32_UINT, 1, 64, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+			{ "NORMAL_TEXTURE", 0, DXGI_FORMAT_R32_UINT, 1, 68, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+			{ "METALLIC_ROUGHNESS_TEXTURE", 0, DXGI_FORMAT_R32_UINT, 1, 72, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
 		};
 
 		IDxcBlob* vs_blob = CompileShader(vs_path, L"VSMain", L"vs_6_6");
@@ -199,12 +172,12 @@ namespace DX12
 		pipeline_desc.PS.BytecodeLength = ps_blob->GetBufferSize();
 		pipeline_desc.PS.pShaderBytecode = ps_blob->GetBufferPointer();
 		pipeline_desc.NumRenderTargets = 1;
-		pipeline_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		pipeline_desc.RTVFormats[0] = rt_format;
 		pipeline_desc.DepthStencilState.DepthEnable = TRUE;
 		pipeline_desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 		pipeline_desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 		pipeline_desc.DepthStencilState.StencilEnable = FALSE;
-		pipeline_desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+		pipeline_desc.DSVFormat = ds_format;
 		pipeline_desc.BlendState.AlphaToCoverageEnable = FALSE;
 		pipeline_desc.BlendState.IndependentBlendEnable = TRUE;
 		pipeline_desc.BlendState.RenderTarget[0] = rt_blend_desc;
@@ -220,10 +193,30 @@ namespace DX12
 		// TODO: Should be able to specify via parameters if this should be a graphics or compute pipeline state
 		ID3D12PipelineState* pipeline_state;
 		DX_CHECK_HR_ERR(d3d_state.device->CreateGraphicsPipelineState(&pipeline_desc,
-			IID_PPV_ARGS(&pipeline_state)), "Failed to create pipeline state");
+			IID_PPV_ARGS(&pipeline_state)), "Failed to create graphics pipeline state");
 
 		DX_RELEASE_OBJECT(vs_blob);
 		DX_RELEASE_OBJECT(ps_blob);
+
+		return pipeline_state;
+	}
+
+	ID3D12PipelineState* CreateComputePipelineState(ID3D12RootSignature* root_sig, const wchar_t* cs_path)
+	{
+		IDxcBlob* cs_blob = CompileShader(cs_path, L"main", L"cs_6_6");
+
+		D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline_desc = {};
+		pipeline_desc.pRootSignature = root_sig;
+		pipeline_desc.CS.BytecodeLength = cs_blob->GetBufferSize();
+		pipeline_desc.CS.pShaderBytecode = cs_blob->GetBufferPointer();
+		pipeline_desc.NodeMask = 0;
+		pipeline_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+		ID3D12PipelineState* pipeline_state;
+		DX_CHECK_HR_ERR(d3d_state.device->CreateComputePipelineState(&pipeline_desc,
+			IID_PPV_ARGS(&pipeline_state)), "Failed to create compute pipeline state");
+
+		DX_RELEASE_OBJECT(cs_blob);
 
 		return pipeline_state;
 	}

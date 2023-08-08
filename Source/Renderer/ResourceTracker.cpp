@@ -22,7 +22,7 @@ namespace ResourceTracker
 	void Init(MemoryScope* memory_scope, size_t capacity)
 	{
 		data.memory_scope = memory_scope;
-		data.tracked_resources = memory_scope->AllocateConstruct<Hashmap<ID3D12Resource*, TrackedResource>>(data.memory_scope);
+		data.tracked_resources = memory_scope->New<Hashmap<ID3D12Resource*, TrackedResource>>(data.memory_scope);
 	}
 
 	void Exit()
@@ -63,6 +63,7 @@ namespace ResourceTracker
 
 		if (tracked_resource)
 		{
+			data.tracked_resources->Remove(tracked_resource->resource);
 			DX_RELEASE_OBJECT(tracked_resource->resource);
 		}
 	}

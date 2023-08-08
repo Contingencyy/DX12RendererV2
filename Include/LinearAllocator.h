@@ -90,7 +90,7 @@ public:
 	}
 
 	template<typename T, typename... TArgs>
-	T* AllocateConstruct(TArgs&&... args)
+	T* New(TArgs&&... args)
 	{
 		if constexpr (!std::is_trivially_destructible_v<T>)
 		{

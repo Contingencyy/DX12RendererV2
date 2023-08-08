@@ -1,13 +1,20 @@
 #pragma once
 #include "Containers/ResourceSlotmap.h"
 
+struct Material
+{
+	ResourceHandle base_color_texture_handle;
+	ResourceHandle normal_texture_handle;
+	ResourceHandle metallic_roughness_texture_handle;
+};
+
 struct Model
 {
 	struct Node
 	{
 		uint32_t num_meshes;
 		ResourceHandle* mesh_handles;
-		ResourceHandle* texture_handles;
+		Material* materials;
 		Mat4x4 transform;
 
 		uint32_t num_children;

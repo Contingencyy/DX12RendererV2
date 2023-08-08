@@ -16,9 +16,10 @@ namespace DX12
 	// ------------------------------------------------------------------------------------------------
 	// Root signatures, shaders, pipeline states
 
-	ID3D12RootSignature* CreateRootSignature();
+	ID3D12RootSignature* CreateRootSignature(const D3D12_VERSIONED_ROOT_SIGNATURE_DESC& root_sig_desc);
 	IDxcBlob* CompileShader(const wchar_t* filepath, const wchar_t* entry_point, const wchar_t* target_profile);
-	ID3D12PipelineState* CreatePipelineState(ID3D12RootSignature* root_sig, const wchar_t* vs_path, const wchar_t* ps_path);
+	ID3D12PipelineState* CreateGraphicsPipelineState(ID3D12RootSignature* root_sig, DXGI_FORMAT rt_format, DXGI_FORMAT ds_format, const wchar_t* vs_path, const wchar_t* ps_path);
+	ID3D12PipelineState* CreateComputePipelineState(ID3D12RootSignature* root_sig, const wchar_t* cs_path);
 
 	// ------------------------------------------------------------------------------------------------
 	// Buffers

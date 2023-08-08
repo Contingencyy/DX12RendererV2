@@ -53,6 +53,8 @@ enum ReservedDescriptorRTV : uint32_t
 	ReservedDescriptorRTV_BackBuffer0,
 	ReservedDescriptorRTV_BackBuffer1,
 	ReservedDescriptorRTV_BackBuffer2,
+	ReservedDescriptorRTV_HDRRenderTarget,
+	ReservedDescriptorRTV_SDRRenderTarget,
 	ReservedDescriptorRTV_Count
 };
 
@@ -64,29 +66,33 @@ enum ReservedDescriptorDSV : uint32_t
 
 enum ReservedDescriptorCBVSRVUAV : uint32_t
 {
-	ReservedDescriptorCBVSRVUAV_DearImGui,
+	ReservedDescriptorSRV_DearImGui,
+	ReservedDescriptorSRV_HDRRenderTarget,
+	ReservedDescriptorUAV_SDRRenderTarget,
 	ReservedDescriptorCBVSRVUAV_Count
 };
 
-struct RasterPipeline
+struct PipelineState
 {
-	ID3D12RootSignature* root_sig;
-	ID3D12PipelineState* pipeline_state;
+	ID3D12RootSignature* d3d_root_sig;
+	ID3D12PipelineState* d3d_pso;
 };
 
 struct InstanceData
 {
 	float4x4 transform;
-	uint base_color_index;
+	uint base_color_texture_index;
+	uint normal_texture_index;
+	uint metallic_roughness_texture_index;
 };
 
 struct D3DState
 {
 
 #define DX_BACK_BUFFER_COUNT 3
-#define DX_DESCRIPTOR_HEAP_SIZE_RTV 128
-#define DX_DESCRIPTOR_HEAP_SIZE_DSV 32
-#define DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV 1024
+#define DX_DESCRIPTOR_HEAP_SIZE_RTV ReservedDescriptorRTV_Count
+#define DX_DESCRIPTOR_HEAP_SIZE_DSV ReservedDescriptorDSV_Count
+#define DX_DESCRIPTOR_HEAP_SIZE_CBV_SRV_UAV ReservedDescriptorCBVSRVUAV_Count + 1024
 
 	// Adapter and device
 	IDXGIAdapter4* adapter;
@@ -96,7 +102,6 @@ struct D3DState
 	// Swap chain
 	IDXGISwapChain4* swapchain;
 	ID3D12CommandQueue* swapchain_command_queue;
-	ID3D12Resource* depth_buffer;
 	bool tearing_supported;
 	bool vsync_enabled;
 	uint32_t current_back_buffer_idx;
@@ -120,6 +125,11 @@ struct D3DState
 	uint32_t render_height;
 	uint64_t frame_index;
 
+	// Render targets
+	ID3D12Resource* hdr_render_target;
+	ID3D12Resource* sdr_render_target;
+	ID3D12Resource* depth_buffer;
+
 	// Fences
 	ID3D12Fence* frame_fence;
 	uint64_t frame_fence_value;
@@ -140,7 +150,8 @@ struct D3DState
 	IDxcIncludeHandler* dxc_include_handler;
 
 	// Pipeline states
-	RasterPipeline default_raster_pipeline;
+	PipelineState default_raster_pipeline;
+	PipelineState post_process_pipeline;
 
 	// Scene constant buffer
 	ID3D12Resource* scene_cb;
