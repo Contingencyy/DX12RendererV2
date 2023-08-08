@@ -84,6 +84,8 @@ struct InstanceData
 	uint base_color_texture_index;
 	uint normal_texture_index;
 	uint metallic_roughness_texture_index;
+	float metallic_factor;
+	float roughness_factor;
 };
 
 struct D3DState

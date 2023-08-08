@@ -1,9 +1,18 @@
 #pragma once
 #include "Containers/ResourceSlotmap.h"
-#include "AssetManager.h"
 
 namespace Renderer
 {
+
+	struct Material
+	{
+		ResourceHandle base_color_texture_handle;
+		ResourceHandle normal_texture_handle;
+		ResourceHandle metallic_roughness_texture_handle;
+
+		float metallic_factor;
+		float roughness_factor;
+	};
 
 	struct RendererInitParams
 	{

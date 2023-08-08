@@ -311,7 +311,7 @@ namespace Renderer
 			root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 			D3D12_STATIC_SAMPLER_DESC static_samplers[1] = {};
-			static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
+			static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
 			static_samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 			static_samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 			static_samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -727,6 +727,9 @@ namespace Renderer
 		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].base_color_texture_index = base_color_texture->srv.descriptor_heap_index;
 		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].normal_texture_index = normal_texture->srv.descriptor_heap_index;
 		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].metallic_roughness_texture_index = metallic_roughness_texture->srv.descriptor_heap_index;
+		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].metallic_factor = material.metallic_factor;
+		frame_ctx->instance_buffer_ptr[data.stats.mesh_count].roughness_factor = material.roughness_factor;
+
 		data.stats.mesh_count++;
 	}
 

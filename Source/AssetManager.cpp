@@ -390,7 +390,7 @@ namespace AssetManager
             {
                 node->num_meshes = cgltf_node->mesh->primitives_count;
                 node->mesh_handles = data.memory_scope.Allocate<ResourceHandle>(cgltf_node->mesh->primitives_count);
-                node->materials = data.memory_scope.Allocate<Material>(cgltf_node->mesh->primitives_count);
+                node->materials = data.memory_scope.Allocate<Renderer::Material>(cgltf_node->mesh->primitives_count);
 
                 for (uint32_t prim_idx = 0; prim_idx < cgltf_node->mesh->primitives_count; ++prim_idx)
                 {
@@ -401,28 +401,29 @@ namespace AssetManager
                     size_t mesh_index = CGLTFMeshIndex(cgltf_data, cgltf_node->mesh) + CGLTFPrimitiveIndex(cgltf_node->mesh, primitive);
                     node->mesh_handles[prim_idx] = mesh_handles[mesh_index];
 
-                    // Note: Only set the texture handle if the base color texture is actually valid
                     // Note: The renderer will fall back to default textures if texture handles are invalid
+                    node->materials[prim_idx].metallic_factor = 0.0;
+                    node->materials[prim_idx].roughness_factor = 0.3;
+
                     if (primitive->material->pbr_metallic_roughness.base_color_texture.texture)
                     {
-                        if (primitive->material->pbr_metallic_roughness.base_color_texture.texture)
-                        {
-                            node->materials[prim_idx].base_color_texture_handle = texture_handles[CGLTFImageIndex(
-                                cgltf_data, primitive->material->pbr_metallic_roughness.base_color_texture.texture->image
-                            )];
-                        }
-                        if (primitive->material->normal_texture.texture)
-                        {
-                            node->materials[prim_idx].normal_texture_handle = texture_handles[CGLTFImageIndex(
-                                cgltf_data, primitive->material->normal_texture.texture->image
-                            )];
-                        }
-                        if (primitive->material->pbr_metallic_roughness.metallic_roughness_texture.texture)
-                        {
-                            node->materials[prim_idx].metallic_roughness_texture_handle = texture_handles[CGLTFImageIndex(
-                                cgltf_data, primitive->material->pbr_metallic_roughness.metallic_roughness_texture.texture->image
-                            )];
-                        }
+                        node->materials[prim_idx].base_color_texture_handle = texture_handles[CGLTFImageIndex(
+                            cgltf_data, primitive->material->pbr_metallic_roughness.base_color_texture.texture->image
+                        )];
+                    }
+                    if (primitive->material->normal_texture.texture)
+                    {
+                        node->materials[prim_idx].normal_texture_handle = texture_handles[CGLTFImageIndex(
+                            cgltf_data, primitive->material->normal_texture.texture->image
+                        )];
+                    }
+                    if (primitive->material->pbr_metallic_roughness.metallic_roughness_texture.texture)
+                    {
+                        node->materials[prim_idx].metallic_roughness_texture_handle = texture_handles[CGLTFImageIndex(
+                            cgltf_data, primitive->material->pbr_metallic_roughness.metallic_roughness_texture.texture->image
+                        )];
+                        node->materials[prim_idx].metallic_factor = 1.0;
+                        node->materials[prim_idx].roughness_factor = 1.0;
                     }
                 }
             }

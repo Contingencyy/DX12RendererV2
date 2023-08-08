@@ -13,6 +13,8 @@ struct VertexLayout
     uint base_color_texture : BASE_COLOR_TEXTURE;
     uint normal_texture : NORMAL_TEXTURE;
     uint metallic_roughness_texture : METALLIC_ROUGHNESS_TEXTURE;
+    float metallic_factor : METALLIC_FACTOR;
+    float roughness_factor : ROUGHNESS_FACTOR;
 };
 
 struct VSOut
@@ -26,7 +28,8 @@ struct VSOut
     uint base_color_texture : BASE_COLOR_TEXTURE;
     uint normal_texture : NORMAL_TEXTURE;
     uint metallic_roughness_texture : METALLIC_ROUGHNESS_TEXTURE;
-    float3x3 world_transform_no_translation : WORLD_TRANSFORM_NO_TRANSLATION;
+    float metallic_factor : METALLIC_FACTOR;
+    float roughness_factor : ROUGHNESS_FACTOR;
 };
 
 VSOut VSMain(VertexLayout vertex)
@@ -46,7 +49,8 @@ VSOut VSMain(VertexLayout vertex)
     OUT.base_color_texture = vertex.base_color_texture;
     OUT.normal_texture = vertex.normal_texture;
     OUT.metallic_roughness_texture = vertex.metallic_roughness_texture;
-    OUT.world_transform_no_translation = world_transform_no_translation;
+    OUT.metallic_factor = vertex.metallic_factor;
+    OUT.roughness_factor = vertex.roughness_factor;
 
 	return OUT;
 }
@@ -69,17 +73,20 @@ float4 PSMain(VSOut IN) : SV_TARGET
     normal = normal * 2.0 - 1.0;
     normal = normalize(mul(normal, TBN));
     
+    metallic_roughness.x *= IN.metallic_factor;
+    metallic_roughness.y *= IN.roughness_factor;
+    
     float3 view_pos = g_scene_cb.view_pos;
     float3 view_dir = normalize(view_pos - IN.world_pos.xyz);
     float3 frag_to_light = normalize(float3(0.0, 1.0, 0.0) - IN.world_pos.xyz);
-    //float3 dist_to_light = length(float3(0.0, 1.0, 0.0) - IN.world_pos.xyz);
+    float3 dist_to_light = length(float3(0.0, 1.0, 0.0) - IN.world_pos.xyz);
     
     float4 final_color = float4(0.0, 0.0, 0.0, base_color.a);
     
-    // TODO: Add distance attenuation
-    //float3 falloff = float3(1.0, 0.007, 0.0002);
-    //float3 attenuation = clamp(1.0 / (falloff.x + (falloff.y * dist_to_light) + (falloff.z * (dist_to_light * dist_to_light))), 0.0, 1.0);
-    float3 radiance = float3(2.0, 2.0, 2.0);
+    float3 light_color = float3(2.0, 2.0, 2.0);
+    float3 falloff = float3(1.0, 0.007, 0.0002);
+    float3 attenuation = clamp(1.0 / (falloff.x + (falloff.y * dist_to_light) + (falloff.z * (dist_to_light * dist_to_light))), 0.0, 1.0);
+    float3 radiance = attenuation * light_color;
     float NoL = clamp(dot(normal, frag_to_light), 0.0, 1.0);
     
     float3 brdf_specular, brdf_diffuse;
