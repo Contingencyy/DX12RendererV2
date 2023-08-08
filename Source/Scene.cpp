@@ -41,7 +41,7 @@ namespace Scene
 		Mat4x4 camera_transform;
 		Mat4x4 camera_view;
 		Mat4x4 camera_projection;
-		float camera_speed = 25.0;
+		float camera_speed = 10.0;
 	} static data;
 
 	void Update(float dt)
@@ -83,6 +83,11 @@ namespace Scene
 
 		RenderModel(*chess_model, model_transform);
 		RenderModel(*sponza_model, model_transform);
+	}
+
+	Vec3 GetCameraPosition()
+	{
+		return data.camera_translation;
 	}
 
 	Mat4x4 GetCameraView()

@@ -538,7 +538,7 @@ namespace Renderer
 		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.frame_fence, d3d_state.frame_fence_value);
 	}
 
-	void BeginFrame(const Mat4x4& view, const Mat4x4& projection)
+	void BeginFrame(const Vec3& view_pos, const Mat4x4& view, const Mat4x4& projection)
 	{
 		// ----------------------------------------------------------------------------------
 		// Wait on the current back buffer until all commands on it have finished execution
@@ -553,6 +553,7 @@ namespace Renderer
 		d3d_state.scene_cb_ptr->view = view;
 		d3d_state.scene_cb_ptr->projection = projection;
 		d3d_state.scene_cb_ptr->view_projection = Mat4x4Mul(d3d_state.scene_cb_ptr->view, d3d_state.scene_cb_ptr->projection);
+		d3d_state.scene_cb_ptr->view_pos = view_pos;
 
 		// ----------------------------------------------------------------------------------
 		// Reset the command allocator and command list for the current frame

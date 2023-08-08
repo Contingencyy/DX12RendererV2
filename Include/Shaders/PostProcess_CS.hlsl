@@ -25,6 +25,16 @@ float3 Uncharted2Tonemap(float3 color, float exposure, float gamma)
     return color;
 }
 
+float3 ApplyExposure(float3 color, float exposure)
+{
+    return color * exposure;
+}
+
+float3 ApplyGammaCorrection(float3 color, float gamma)
+{
+    return pow(abs(color), (1.0 / gamma));
+}
+
 float3 ReinhardRGB(float3 color)
 {
     return color / (1.0 + color);
@@ -64,8 +74,11 @@ void main(uint3 dispatch_idx : SV_DispatchThreadID)
     RWTexture2D<float4> sdr_texture = ResourceDescriptorHeap[NonUniformResourceIndex(g_post_process_cb.sdr_texture_index)];
     
     float4 hdr_color = hdr_texture[dispatch_idx.xy];
-    float3 tonemapped_color = Uncharted2Tonemap(hdr_color.xyz, 1.5, 2.2);
+    float3 final_color = hdr_color.xyz;
+    //final_color = ApplyExposure(final_color, 1.5);
+    final_color = ReinhardLuminanceWhite(final_color, 10.0);
+    //final_color = ApplyGammaCorrection(final_color, 1.0);
     
-    sdr_texture[dispatch_idx.xy].xyz = tonemapped_color;
+    sdr_texture[dispatch_idx.xy].xyz = final_color;
     sdr_texture[dispatch_idx.xy].a = hdr_color.a;
 }

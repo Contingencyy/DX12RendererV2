@@ -145,7 +145,7 @@ namespace Application
 
 	void Render()
 	{
-		Renderer::BeginFrame(Scene::GetCameraView(), Scene::GetCameraProjection());
+		Renderer::BeginFrame(Scene::GetCameraPosition(), Scene::GetCameraView(), Scene::GetCameraProjection());
 
 		Scene::Render();
 
