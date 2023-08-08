@@ -50,8 +50,9 @@ public:
     void Remove(TKey key)
     {
         uint32_t node_index = HashNodeIndex(key);
+        uint32_t counter = 0;
 
-        while (m_nodes[node_index].key != NODE_UNUSED)
+        while (m_nodes[node_index].key != NODE_UNUSED || counter <= m_capacity)
         {
             if (m_nodes[node_index].key == key)
             {
@@ -69,6 +70,7 @@ public:
                 break;
             }
 
+            counter++;
             node_index++;
             node_index %= m_capacity;
         }
@@ -80,19 +82,15 @@ public:
         uint32_t node_index = HashNodeIndex(key);
         uint32_t counter = 0;
 
-        while (m_nodes[node_index].key != NODE_UNUSED)
+        while (m_nodes[node_index].key != NODE_UNUSED || counter <= m_capacity)
         {
-            if (counter++ > m_capacity)
-            {
-                break;
-            }
-
             if (m_nodes[node_index].key == key)
             {
                 value = &m_nodes[node_index].value;
                 break;
             }
 
+            counter++;
             node_index++;
             node_index %= m_capacity;
         }
@@ -119,7 +117,7 @@ public:
 private:
     uint32_t HashNodeIndex(TKey key)
     {
-        return Hash::DJB2(key, sizeof(key)) % m_capacity;
+        return Hash::DJB2(&key) % m_capacity;
     }
 
 public:

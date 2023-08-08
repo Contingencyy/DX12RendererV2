@@ -531,6 +531,8 @@ namespace Renderer
 		DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgi_debug));
 		DX_CHECK_HR(dxgi_debug->ReportLiveObjects(DXGI_DEBUG_DX, DXGI_DEBUG_RLO_ALL));
 		DX_RELEASE_INTERFACE(dxgi_debug);*/
+
+		d3d_state.initialized = false;
 	}
 
 	void Flush()

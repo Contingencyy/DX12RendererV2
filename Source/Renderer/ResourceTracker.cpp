@@ -63,8 +63,11 @@ namespace ResourceTracker
 
 		if (tracked_resource)
 		{
-			data.tracked_resources->Remove(tracked_resource->resource);
-			DX_RELEASE_OBJECT(tracked_resource->resource);
+			// NOTE: We need to keep a local pointer to the resource to be released here
+			// The hashmap remove will reset the value of the key value pair, so DX_RELEASE_OBJECT would try to release a nullptr
+			ID3D12Resource* resource = tracked_resource->resource;
+			data.tracked_resources->Remove(resource);
+			DX_RELEASE_OBJECT(resource);
 		}
 	}
 

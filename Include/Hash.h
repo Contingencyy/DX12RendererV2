@@ -17,7 +17,7 @@ namespace Hash
 		return h ^= h >> 16;
 	}
 
-	static uint32_t DJB2(const void* in, uint32_t len)
+	static uint32_t DJB2(const void* in)
 	{
 		uint8_t* data = (uint8_t*)in;
 		uint32_t hash = 5381;
