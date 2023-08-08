@@ -6,7 +6,17 @@ struct PostProcessSettings
 
 ConstantBuffer<PostProcessSettings> g_post_process_cb : register(b0);
 
-float3 Uncharted2Tonemap(float3 color, float exposure, float gamma)
+float3 ApplyExposure(float3 color, float exposure)
+{
+    return color * exposure;
+}
+
+float3 ApplyGammaCorrection(float3 color, float gamma)
+{
+    return pow(abs(color), (1.0 / gamma));
+}
+
+float3 TonemapUncharted2(float3 color, float exposure, float gamma)
 {
     float A = 0.15f;
     float B = 0.50f;
@@ -25,22 +35,12 @@ float3 Uncharted2Tonemap(float3 color, float exposure, float gamma)
     return color;
 }
 
-float3 ApplyExposure(float3 color, float exposure)
-{
-    return color * exposure;
-}
-
-float3 ApplyGammaCorrection(float3 color, float gamma)
-{
-    return pow(abs(color), (1.0 / gamma));
-}
-
-float3 ReinhardRGB(float3 color)
+float3 TonemapReinhardRGB(float3 color)
 {
     return color / (1.0 + color);
 }
 
-float3 ReinhardRGBWhite(float3 color, float max_white)
+float3 TonemapReinhardRGBWhite(float3 color, float max_white)
 {
     float max_white_sq = max_white * max_white;
     float3 numerator = color * (1.0 + (color / float3(max_white_sq, max_white_sq, max_white_sq)));
@@ -58,7 +58,7 @@ float3 ChangeLuminance(float3 color, float3 luma_out)
     return color * (luma_out / luma_in);
 }
 
-float3 ReinhardLuminanceWhite(float3 color, float max_white)
+float3 TonemapReinhardLuminanceWhite(float3 color, float max_white)
 {
     float luma_old = Luminance(color);
     float numerator = luma_old * (1.0 + (luma_old / (max_white * max_white)));
@@ -76,7 +76,7 @@ void main(uint3 dispatch_idx : SV_DispatchThreadID)
     float4 hdr_color = hdr_texture[dispatch_idx.xy];
     float3 final_color = hdr_color.xyz;
     //final_color = ApplyExposure(final_color, 1.5);
-    final_color = ReinhardLuminanceWhite(final_color, 10.0);
+    final_color = TonemapReinhardLuminanceWhite(final_color, 10.0);
     //final_color = ApplyGammaCorrection(final_color, 1.0);
     
     sdr_texture[dispatch_idx.xy].xyz = final_color;

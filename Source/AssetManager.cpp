@@ -99,6 +99,7 @@ private:
         vertex.tangent.x = tangentu[0];
         vertex.tangent.y = tangentu[1];
         vertex.tangent.z = tangentu[2];
+        vertex.tangent.w = fSign;
     }
 
 private:
