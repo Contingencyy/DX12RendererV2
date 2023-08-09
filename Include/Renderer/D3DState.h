@@ -152,7 +152,7 @@ struct D3DState
 	DescriptorAllocation reserved_cbv_srv_uavs;
 
 	// DXC shader compiler
-	IDxcCompiler* dxc_compiler;
+	IDxcCompiler3* dxc_compiler;
 	IDxcUtils* dxc_utils;
 	IDxcIncludeHandler* dxc_include_handler;
 

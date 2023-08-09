@@ -87,12 +87,21 @@ namespace DX12
 		// TODO: Use shader reflection to figure out the bindings/root signature?
 		HRESULT hr;
 		uint32_t codepage = 0;
-		IDxcBlobEncoding* shader_text = nullptr;
 
-		DX_CHECK_HR_ERR(d3d_state.dxc_utils->LoadFile(filepath, &codepage, &shader_text), "Failed to load shader from file");
+		// Open the shader's source file
+		IDxcBlobEncoding* source_blob = nullptr;
+		DX_CHECK_HR_ERR(d3d_state.dxc_utils->LoadFile(filepath, &codepage, &source_blob), "Failed to load shader from file");
+		DxcBuffer dxc_source_buffer = {};
+		dxc_source_buffer.Encoding = DXC_CP_ACP;
+		dxc_source_buffer.Ptr = source_blob->GetBufferPointer();
+		dxc_source_buffer.Size = source_blob->GetBufferSize();
 
+		// Define the shader compilation arguments
 		const wchar_t* compile_args[] =
 		{
+			L"",
+			L"-E", L"",
+			L"-T", L"",
 			DXC_ARG_WARNINGS_ARE_ERRORS,
 			DXC_ARG_OPTIMIZATION_LEVEL3,
 			DXC_ARG_PACK_MATRIX_ROW_MAJOR,
@@ -102,32 +111,44 @@ namespace DX12
 #endif
 		};
 
-		IDxcOperationResult* result;
-		DX_CHECK_HR_ERR(d3d_state.dxc_compiler->Compile(
-			shader_text, filepath, entry_point, target_profile,
-			compile_args, DX_ARRAY_SIZE(compile_args), nullptr,
-			0, d3d_state.dxc_include_handler, &result
-		), "Failed to compile shader");
+		compile_args[0] = filepath;
+		compile_args[2] = entry_point;
+		compile_args[4] = target_profile;
 
+		// Compile the shader
+		IDxcResult* result = nullptr;
+		DX_CHECK_HR_ERR(d3d_state.dxc_compiler->Compile(
+			&dxc_source_buffer, compile_args, DX_ARRAY_SIZE(compile_args),
+			d3d_state.dxc_include_handler, IID_PPV_ARGS(&result)
+			), "Failed to compile shader"
+		);
+
+		// Check the result of the compilation, and exit if it failed
 		result->GetStatus(&hr);
 		if (FAILED(hr))
 		{
 			IDxcBlobEncoding* error;
 			result->GetErrorBuffer(&error);
+			
 			// TODO: Logging
 			MessageBoxA(nullptr, (char*)error->GetBufferPointer(), "Failed", MB_OK);
 			DX_ASSERT(false && (char*)error->GetBufferPointer());
+			DX_RELEASE_OBJECT(error);
 
 			return nullptr;
 		}
 
-		IDxcBlob* blob;
-		result->GetResult(&blob);
+		// Get the shader binary
+		IDxcBlob* shader_binary = nullptr;
+		IDxcBlobUtf16* shader_name = nullptr;
+		result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shader_binary), &shader_name);
+		DX_ASSERT(shader_binary, "Failed to retrieve the shader binary");
 
-		DX_RELEASE_OBJECT(shader_text);
+		DX_RELEASE_OBJECT(source_blob);
+		DX_RELEASE_OBJECT(shader_name);
 		DX_RELEASE_OBJECT(result);
 
-		return blob;
+		return shader_binary;
 	}
 
 	ID3D12PipelineState* CreateGraphicsPipelineState(ID3D12RootSignature* root_sig, DXGI_FORMAT rt_format, DXGI_FORMAT ds_format,
