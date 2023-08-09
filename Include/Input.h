@@ -13,6 +13,7 @@ namespace Input
 		KeyCode_D,
 		KeyCode_Space,
 		KeyCode_LCTRL,
+		KeyCode_SHIFT,
 		KeyCode_Invalid,
 		KeyCode_NumKeys
 	};

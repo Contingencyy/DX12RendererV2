@@ -41,7 +41,8 @@ namespace Scene
 		Mat4x4 camera_transform;
 		Mat4x4 camera_view;
 		Mat4x4 camera_projection;
-		float camera_speed = 10.0;
+		float camera_speed_normal = 2.0;
+		float camera_speed_fast = 20.0;
 	} static data;
 
 	void Update(float dt)
@@ -61,9 +62,10 @@ namespace Scene
 			data.camera_rotation = Vec3(data.camera_pitch, data.camera_yaw, 0.0);
 
 			// Camera translation
-			data.camera_translation = Vec3Add(Vec3MulScalar(RightVectorFromTransform(data.camera_transform), dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_D, Input::KeyCode_A)), data.camera_translation);
-			data.camera_translation = Vec3Add(Vec3MulScalar(UpVectorFromTransform(data.camera_transform), dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_Space, Input::KeyCode_LCTRL)), data.camera_translation);
-			data.camera_translation = Vec3Add(Vec3MulScalar(ForwardVectorFromTransform(data.camera_transform), dt * data.camera_speed * Input::GetAxis1D(Input::KeyCode_W, Input::KeyCode_S)), data.camera_translation);
+			float camera_speed = Input::IsKeyPressed(Input::KeyCode_SHIFT) ? data.camera_speed_fast : data.camera_speed_normal;
+			data.camera_translation = Vec3Add(Vec3MulScalar(RightVectorFromTransform(data.camera_transform), dt * camera_speed * Input::GetAxis1D(Input::KeyCode_D, Input::KeyCode_A)), data.camera_translation);
+			data.camera_translation = Vec3Add(Vec3MulScalar(UpVectorFromTransform(data.camera_transform), dt * camera_speed * Input::GetAxis1D(Input::KeyCode_Space, Input::KeyCode_LCTRL)), data.camera_translation);
+			data.camera_translation = Vec3Add(Vec3MulScalar(ForwardVectorFromTransform(data.camera_transform), dt * camera_speed * Input::GetAxis1D(Input::KeyCode_W, Input::KeyCode_S)), data.camera_translation);
 		}
 
 		// Make camera transform

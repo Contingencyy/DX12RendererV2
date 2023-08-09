@@ -60,6 +60,12 @@ namespace Renderer
 				.use_linear_perceptual_roughness = 1,
 				.diffuse_brdf = PBR_DIFFUSE_BRDF_LAMBERT,
 			},
+			.post_process = {
+				.tonemap_operator = TONEMAP_OP_REINHARD_LUM_WHITE,
+				.gamma = 1.0,
+				.exposure = 1.5,
+				.max_white = 10.0,
+			}
 		};
 
 		struct FrameStatistics
@@ -81,6 +87,23 @@ namespace Renderer
 			return "Burley";
 		case PBR_DIFFUSE_BRDF_OREN_NAYAR:
 			return "Oren-Nayar";
+		default:
+			return "Undefined";
+		}
+	}
+
+	static const char* TonemapOperatorName(uint32_t tonemap_operator)
+	{
+		switch (tonemap_operator)
+		{
+		case TONEMAP_OP_REINHARD_RGB:
+			return "Reinhard RGB";
+		case TONEMAP_OP_REINHARD_RGB_WHITE:
+			return "Reinhard RGB white";
+		case TONEMAP_OP_REINHARD_LUM_WHITE:
+			return "Reinhard luminance white";
+		case TONEMAP_OP_UNCHARTED2:
+			return "Uncharted2";
 		default:
 			return "Undefined";
 		}
@@ -321,7 +344,7 @@ namespace Renderer
 		d3d_state.upload_buffer->Map(0, nullptr, (void**)&d3d_state.upload_buffer_ptr);
 	}
 
-	static void InitPipelines()
+	static void CreatePipelines()
 	{
 		// Default graphics pipeline
 		{
@@ -377,12 +400,18 @@ namespace Renderer
 
 		// Post process compute pipeline
 		{
-			D3D12_ROOT_PARAMETER1 root_params[1] = {};
-			root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-			root_params[0].Constants.Num32BitValues = 2;
-			root_params[0].Constants.ShaderRegister = 0;
-			root_params[0].Constants.RegisterSpace = 0;
+			D3D12_ROOT_PARAMETER1 root_params[2] = {};
+			root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+			root_params[0].Descriptor.ShaderRegister = 0;
+			root_params[0].Descriptor.RegisterSpace = 0;
+			root_params[0].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
 			root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+			root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+			root_params[1].Constants.Num32BitValues = 2;
+			root_params[1].Constants.ShaderRegister = 0;
+			root_params[1].Constants.RegisterSpace = 1;
+			root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 			D3D12_VERSIONED_ROOT_SIGNATURE_DESC root_sig_desc = {};
 			root_sig_desc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
@@ -461,7 +490,7 @@ namespace Renderer
 
 		ResourceTracker::Init(&data.memory_scope);
 		InitD3DState(params);
-		InitPipelines();
+		CreatePipelines();
 		InitDearImGui();
 
 		// ------------------------------------------------------------------------------------
@@ -583,6 +612,10 @@ namespace Renderer
 
 		frame_ctx->render_settings_ptr->pbr.use_linear_perceptual_roughness = data.settings.pbr.use_linear_perceptual_roughness;
 		frame_ctx->render_settings_ptr->pbr.diffuse_brdf = data.settings.pbr.diffuse_brdf;
+		frame_ctx->render_settings_ptr->post_process.tonemap_operator = data.settings.post_process.tonemap_operator;
+		frame_ctx->render_settings_ptr->post_process.gamma = data.settings.post_process.gamma;
+		frame_ctx->render_settings_ptr->post_process.exposure = data.settings.post_process.exposure;
+		frame_ctx->render_settings_ptr->post_process.max_white = data.settings.post_process.max_white;
 
 		frame_ctx->scene_cb_ptr->view = view;
 		frame_ctx->scene_cb_ptr->projection = projection;
@@ -674,10 +707,11 @@ namespace Renderer
 		cmd_list->SetComputeRootSignature(d3d_state.post_process_pipeline.d3d_root_sig);
 		cmd_list->SetPipelineState(d3d_state.post_process_pipeline.d3d_pso);
 
+		cmd_list->SetComputeRootConstantBufferView(0, frame_ctx->render_settings_cb->GetGPUVirtualAddress());
 		uint32_t hdr_srv_index = d3d_state.reserved_cbv_srv_uavs.GetDescriptorHeapIndex(ReservedDescriptorSRV_HDRRenderTarget);
 		uint32_t sdr_uav_index = d3d_state.reserved_cbv_srv_uavs.GetDescriptorHeapIndex(ReservedDescriptorUAV_SDRRenderTarget);
-		cmd_list->SetComputeRoot32BitConstant(0, hdr_srv_index, 0);
-		cmd_list->SetComputeRoot32BitConstant(0, sdr_uav_index, 1);
+		cmd_list->SetComputeRoot32BitConstant(1, hdr_srv_index, 0);
+		cmd_list->SetComputeRoot32BitConstant(1, sdr_uav_index, 1);
 
 		uint32_t num_dispatch_threads_x = DX_ALIGN_POW2(d3d_state.render_width, 8) / 8;
 		uint32_t num_dispatch_threads_y = DX_ALIGN_POW2(d3d_state.render_height, 8) / 8;
@@ -993,6 +1027,36 @@ namespace Renderer
 				}
 				ImGui::EndCombo();
 			}
+
+			ImGui::Unindent(20.0);
+		}
+
+		if (ImGui::CollapsingHeader("Post-processing"))
+		{
+			ImGui::Indent(20.0);
+
+			if (ImGui::BeginCombo("Tonemap operator", TonemapOperatorName(data.settings.post_process.tonemap_operator), ImGuiComboFlags_None))
+			{
+				for (uint32_t tonemap_operator = 0; tonemap_operator < TONEMAP_OP_NUM_TYPES; ++tonemap_operator)
+				{
+					bool is_selected = tonemap_operator == data.settings.pbr.diffuse_brdf;
+					if (ImGui::Selectable(TonemapOperatorName(tonemap_operator), is_selected))
+					{
+						data.settings.post_process.tonemap_operator = tonemap_operator;
+					}
+
+					if (is_selected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+
+				ImGui::EndCombo();
+			}
+
+			ImGui::SliderFloat("Gamma", &data.settings.post_process.gamma, 0.01f, 10.0f, "%.3f", ImGuiSliderFlags_None);
+			ImGui::SliderFloat("Exposure", &data.settings.post_process.exposure, 0.01f, 10.0f, "%.3f", ImGuiSliderFlags_None);
+			ImGui::SliderFloat("Max white", &data.settings.post_process.max_white, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_None);
 
 			ImGui::Unindent(20.0);
 		}

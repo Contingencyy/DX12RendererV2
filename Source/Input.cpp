@@ -34,6 +34,8 @@ namespace Input
 			return KeyCode_Space;
 		case VK_CONTROL:
 			return KeyCode_LCTRL;
+		case VK_SHIFT:
+			return KeyCode_SHIFT;
 		default:
 			return KeyCode_Invalid;
 		}
