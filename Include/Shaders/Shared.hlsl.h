@@ -6,6 +6,20 @@
 #define float3 Vec3
 #endif
 
+#define PBR_DIFFUSE_BRDF_LAMBERT	0
+#define PBR_DIFFUSE_BRDF_BURLEY		1
+#define PBR_DIFFUSE_BRDF_OREN_NAYAR 2
+#define PBR_DIFFUSE_BRDF_NUM_TYPES  3
+
+struct RenderSettings
+{
+	struct PBR
+	{
+		uint use_linear_perceptual_roughness;
+		uint diffuse_brdf;
+	} pbr;
+};
+
 struct SceneData
 {
 	float4x4 view;

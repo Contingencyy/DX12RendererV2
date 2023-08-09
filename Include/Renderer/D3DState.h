@@ -50,9 +50,6 @@ if ((object)) \
 
 enum ReservedDescriptorRTV : uint32_t
 {
-	ReservedDescriptorRTV_BackBuffer0,
-	ReservedDescriptorRTV_BackBuffer1,
-	ReservedDescriptorRTV_BackBuffer2,
 	ReservedDescriptorRTV_HDRRenderTarget,
 	ReservedDescriptorRTV_SDRRenderTarget,
 	ReservedDescriptorRTV_Count
@@ -119,6 +116,14 @@ struct D3DState
 		ID3D12Resource* instance_buffer;
 		InstanceData* instance_buffer_ptr;
 		D3D12_VERTEX_BUFFER_VIEW instance_vbv;
+
+		// Render settings constant buffer
+		ID3D12Resource* render_settings_cb;
+		RenderSettings* render_settings_ptr;
+
+		// Scene constant buffer
+		ID3D12Resource* scene_cb;
+		SceneData* scene_cb_ptr;
 	} frame_ctx[DX_BACK_BUFFER_COUNT];
 
 	// Render resolution
@@ -154,10 +159,6 @@ struct D3DState
 	// Pipeline states
 	PipelineState default_raster_pipeline;
 	PipelineState post_process_pipeline;
-
-	// Scene constant buffer
-	ID3D12Resource* scene_cb;
-	SceneData* scene_cb_ptr;
 
 	// Upload buffer
 	ID3D12Resource* upload_buffer;

@@ -55,6 +55,13 @@ namespace Renderer
 
 		RenderMeshData* render_mesh_data;
 
+		RenderSettings settings = {
+			.pbr = {
+				.use_linear_perceptual_roughness = 1,
+				.diffuse_brdf = PBR_DIFFUSE_BRDF_LAMBERT,
+			},
+		};
+
 		struct FrameStatistics
 		{
 			size_t draw_call_count;
@@ -63,6 +70,21 @@ namespace Renderer
 			size_t total_triangle_count;
 		} stats;
 	} static data;
+
+	static const char* DiffuseBRDFName(uint32_t diffuse_brdf)
+	{
+		switch (diffuse_brdf)
+		{
+		case PBR_DIFFUSE_BRDF_LAMBERT:
+			return "Lambert";
+		case PBR_DIFFUSE_BRDF_BURLEY:
+			return "Burley";
+		case PBR_DIFFUSE_BRDF_OREN_NAYAR:
+			return "Oren-Nayar";
+		default:
+			return "Undefined";
+		}
+	}
 
 	static uint32_t TextureFormatBPP(TextureFormat format)
 	{
@@ -261,7 +283,6 @@ namespace Renderer
 
 		CreateRenderTargets();
 
-		// Create command queue, list, and allocator
 		//d3d_state.command_queue_direct = CreateCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_PRIORITY_NORMAL);
 		for (uint32_t back_buffer_idx = 0; back_buffer_idx < DX_BACK_BUFFER_COUNT; ++back_buffer_idx)
 		{
@@ -280,8 +301,13 @@ namespace Renderer
 			frame_ctx->instance_vbv.StrideInBytes = sizeof(InstanceData);
 			frame_ctx->instance_vbv.SizeInBytes = frame_ctx->instance_vbv.StrideInBytes * MAX_RENDER_MESHES;
 
-			DX12::CreateTextureRTV(frame_ctx->back_buffer, d3d_state.reserved_rtvs.GetCPUHandle(
-				ReservedDescriptorRTV_BackBuffer0 + back_buffer_idx), DXGI_FORMAT_R8G8B8A8_UNORM);
+			// Create the render settings constant buffer
+			frame_ctx->render_settings_cb = DX12::CreateUploadBuffer(L"Render settings constant buffer", sizeof(RenderSettings));
+			frame_ctx->render_settings_cb->Map(0, nullptr, (void**)&frame_ctx->render_settings_ptr);
+
+			// Create the scene constant buffer
+			frame_ctx->scene_cb = DX12::CreateUploadBuffer(L"Scene constant buffer", sizeof(SceneData));
+			frame_ctx->scene_cb->Map(0, nullptr, (void**)&frame_ctx->scene_cb_ptr);
 		}
 		DX_CHECK_HR_ERR(d3d_state.device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&d3d_state.frame_fence)), "Failed to create fence");
 
@@ -289,10 +315,6 @@ namespace Renderer
 		DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&d3d_state.dxc_compiler));
 		DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&d3d_state.dxc_utils));
 		d3d_state.dxc_utils->CreateDefaultIncludeHandler(&d3d_state.dxc_include_handler);
-
-		// Create the scene constant buffer
-		d3d_state.scene_cb = DX12::CreateUploadBuffer(L"Scene constant buffer", sizeof(SceneData));
-		d3d_state.scene_cb->Map(0, nullptr, (void**)&d3d_state.scene_cb_ptr);
 
 		// Create the upload buffer
 		d3d_state.upload_buffer = DX12::CreateUploadBuffer(L"Generic upload buffer", DX_MB(256));
@@ -303,12 +325,20 @@ namespace Renderer
 	{
 		// Default graphics pipeline
 		{
-			D3D12_ROOT_PARAMETER1 root_params[1] = {};
+			D3D12_ROOT_PARAMETER1 root_params[2] = {};
+			// Render settings constant buffer
 			root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 			root_params[0].Descriptor.ShaderRegister = 0;
 			root_params[0].Descriptor.RegisterSpace = 0;
 			root_params[0].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
 			root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+			// Scene constant buffer
+			root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+			root_params[1].Descriptor.ShaderRegister = 0;
+			root_params[1].Descriptor.RegisterSpace = 1;
+			root_params[1].Descriptor.Flags = D3D12_ROOT_DESCRIPTOR_FLAG_NONE;
+			root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 			D3D12_STATIC_SAMPLER_DESC static_samplers[1] = {};
 			static_samplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
@@ -416,9 +446,6 @@ namespace Renderer
 		{
 			D3DState::FrameContext* frame_ctx = GetFrameContext(back_buffer_idx);
 			DX_CHECK_HR(d3d_state.swapchain->GetBuffer(back_buffer_idx, IID_PPV_ARGS(&frame_ctx->back_buffer)));
-			
-			// Need to create new render target views for the new back buffer resources
-			DX12::CreateTextureRTV(frame_ctx->back_buffer, d3d_state.reserved_rtvs.GetCPUHandle(ReservedDescriptorRTV_BackBuffer0 + back_buffer_idx), DXGI_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		d3d_state.current_back_buffer_idx = d3d_state.swapchain->GetCurrentBackBufferIndex();
@@ -493,6 +520,8 @@ namespace Renderer
 			DX_RELEASE_OBJECT(frame_ctx->command_allocator);
 			DX_RELEASE_OBJECT(frame_ctx->command_list);
 			frame_ctx->instance_buffer->Unmap(0, nullptr);
+			frame_ctx->render_settings_cb->Unmap(0, nullptr);
+			frame_ctx->scene_cb->Unmap(0, nullptr);
 		}
 
 		ImGui_ImplDX12_Shutdown();
@@ -552,10 +581,13 @@ namespace Renderer
 		D3DState::FrameContext* frame_ctx = GetFrameContextCurrent();
 		DX12::WaitOnFence(d3d_state.swapchain_command_queue, d3d_state.frame_fence, frame_ctx->back_buffer_fence_value);
 
-		d3d_state.scene_cb_ptr->view = view;
-		d3d_state.scene_cb_ptr->projection = projection;
-		d3d_state.scene_cb_ptr->view_projection = Mat4x4Mul(d3d_state.scene_cb_ptr->view, d3d_state.scene_cb_ptr->projection);
-		d3d_state.scene_cb_ptr->view_pos = view_pos;
+		frame_ctx->render_settings_ptr->pbr.use_linear_perceptual_roughness = data.settings.pbr.use_linear_perceptual_roughness;
+		frame_ctx->render_settings_ptr->pbr.diffuse_brdf = data.settings.pbr.diffuse_brdf;
+
+		frame_ctx->scene_cb_ptr->view = view;
+		frame_ctx->scene_cb_ptr->projection = projection;
+		frame_ctx->scene_cb_ptr->view_projection = Mat4x4Mul(frame_ctx->scene_cb_ptr->view, frame_ctx->scene_cb_ptr->projection);
+		frame_ctx->scene_cb_ptr->view_pos = view_pos;
 
 		// ----------------------------------------------------------------------------------
 		// Reset the command allocator and command list for the current frame
@@ -612,7 +644,8 @@ namespace Renderer
 		cmd_list->SetPipelineState(d3d_state.default_raster_pipeline.d3d_pso);
 
 		cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		cmd_list->SetGraphicsRootConstantBufferView(0, d3d_state.scene_cb->GetGPUVirtualAddress());
+		cmd_list->SetGraphicsRootConstantBufferView(0, frame_ctx->render_settings_cb->GetGPUVirtualAddress());
+		cmd_list->SetGraphicsRootConstantBufferView(1, frame_ctx->scene_cb->GetGPUVirtualAddress());
 		cmd_list->IASetVertexBuffers(1, 1, &frame_ctx->instance_vbv);
 
 		for (size_t mesh = 0; mesh < data.stats.mesh_count; ++mesh)
@@ -889,6 +922,9 @@ namespace Renderer
 		DXGI_QUERY_VIDEO_MEMORY_INFO non_local_mem_info = {};
 		d3d_state.adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &non_local_mem_info);
 
+		// ---------------------------------------------------------------------------
+		// General renderer menu with information about the hardware, memory usage, render statistics, etc.
+
 		ImGui::Begin("Renderer");
 
 		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
@@ -900,14 +936,6 @@ namespace Renderer
 			ImGui::Text("Shared system memory: %u MB", DX_TO_MB(d3d_state.adapter_desc.SharedSystemMemory));
 			ImGui::Text("Back buffer count: %u", DX_BACK_BUFFER_COUNT);
 			ImGui::Text("Current back buffer: %u", d3d_state.current_back_buffer_idx);
-		}
-
-		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-		if (ImGui::CollapsingHeader("Settings"))
-		{
-			ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
-			ImGui::Checkbox("VSync", &d3d_state.vsync_enabled);
-			ImGui::Text("Tearing: %s", d3d_state.tearing_supported ? "true" : "false");
 		}
 
 		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
@@ -930,6 +958,43 @@ namespace Renderer
 			ImGui::Text("Non-local usage: %u MB", DX_TO_MB(non_local_mem_info.CurrentUsage));
 			ImGui::Text("Non-local reserved: %u MB", DX_TO_MB(non_local_mem_info.CurrentReservation));
 			ImGui::Text("Non-local available: %u MB", DX_TO_MB(non_local_mem_info.AvailableForReservation));
+		}
+
+		ImGui::End();
+
+		// ---------------------------------------------------------------------------
+		// Render settings menu for tweaking all sorts of rendering settings
+
+		ImGui::Begin("Render settings");
+
+		ImGui::Text("Resolution: %ux%u", d3d_state.render_width, d3d_state.render_height);
+		ImGui::Checkbox("VSync", &d3d_state.vsync_enabled);
+		ImGui::Text("Tearing: %s", d3d_state.tearing_supported ? "true" : "false");
+
+		if (ImGui::CollapsingHeader("Physically-based rendering"))
+		{
+			ImGui::Indent(20.0);
+
+			ImGui::Checkbox("Use linear perceptual roughness", (bool*)&data.settings.pbr.use_linear_perceptual_roughness);
+			if (ImGui::BeginCombo("Diffuse BRDF", DiffuseBRDFName(data.settings.pbr.diffuse_brdf), ImGuiComboFlags_None))
+			{
+				for (uint32_t diffuse_brdf = 0; diffuse_brdf < PBR_DIFFUSE_BRDF_NUM_TYPES; ++diffuse_brdf)
+				{
+					bool is_selected = diffuse_brdf == data.settings.pbr.diffuse_brdf;
+					if (ImGui::Selectable(DiffuseBRDFName(diffuse_brdf), is_selected))
+					{
+						data.settings.pbr.diffuse_brdf = diffuse_brdf;
+					}
+
+					if (is_selected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+				ImGui::EndCombo();
+			}
+
+			ImGui::Unindent(20.0);
 		}
 
 		ImGui::End();

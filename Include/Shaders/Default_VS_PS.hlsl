@@ -1,7 +1,7 @@
 #include "Shared.hlsl.h"
 #include "BRDF.hlsl"
 
-ConstantBuffer<SceneData> g_scene_cb : register(b0);
+ConstantBuffer<SceneData> g_scene_cb : register(b0, space1);
 
 struct VertexLayout
 {
