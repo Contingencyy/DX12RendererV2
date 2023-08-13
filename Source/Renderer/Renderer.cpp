@@ -7,6 +7,7 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx12.h"
+#include "implot/implot.h"
 
 // Specify the D3D12 agility SDK version and path
 // This will help the D3D12.dll loader pick the right D3D12Core.dll (either the system installed or provided agility)
@@ -64,7 +65,7 @@ namespace Renderer
 				.tonemap_operator = TONEMAP_OP_REINHARD_LUM_WHITE,
 				.gamma = 1.0,
 				.exposure = 1.5,
-				.max_white = 10.0,
+				.max_white = 50.0,
 			}
 		};
 
@@ -432,6 +433,7 @@ namespace Renderer
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
+		ImPlot::CreateContext();
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -555,6 +557,7 @@ namespace Renderer
 
 		ImGui_ImplDX12_Shutdown();
 		ImGui_ImplWin32_Shutdown();
+		ImPlot::DestroyContext();
 		ImGui::DestroyContext();
 
 		// Releases all tracked ID3D12 resources (does not call ID3D12Resource::Unmap)
@@ -600,6 +603,8 @@ namespace Renderer
 
 	void BeginFrame(const Vec3& view_pos, const Mat4x4& view, const Mat4x4& projection)
 	{
+		DX_PERF_SCOPE("Renderer::BeginFrame");
+
 		// ----------------------------------------------------------------------------------
 		// Wait on the current back buffer until all commands on it have finished execution
 
@@ -641,6 +646,8 @@ namespace Renderer
 
 	void RenderFrame()
 	{
+		DX_PERF_SCOPE("Renderer::RenderFrame");
+
 		// ----------------------------------------------------------------------------------
 		// Create the render target view for the current back buffer
 
@@ -720,6 +727,8 @@ namespace Renderer
 
 	void EndFrame()
 	{
+		DX_PERF_SCOPE("Renderer::EndFrame");
+
 		// ----------------------------------------------------------------------------------
 		// Transition the back buffer to the present state
 
@@ -1076,7 +1085,7 @@ namespace Renderer
 		ID3D12GraphicsCommandList6* cmd_list = GetFrameContextCurrent()->command_list;
 
 		ImGui::Render();
-
+		
 		D3D12_RESOURCE_BARRIER imgui_rt_barrier = ResourceTracker::TransitionBarrier(d3d_state.sdr_render_target, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		cmd_list->ResourceBarrier(1, &imgui_rt_barrier);
 

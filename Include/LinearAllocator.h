@@ -8,10 +8,10 @@ typedef unsigned char uint8_t;
 
 struct MemoryStatistics
 {
-	size_t total_allocated_bytes;
-	size_t total_deallocated_bytes;
-	size_t total_committed_bytes;
-	size_t total_decommitted_bytes;
+	size_t total_allocated_bytes = 0;
+	size_t total_deallocated_bytes = 0;
+	size_t total_committed_bytes = 0;
+	size_t total_decommitted_bytes = 0;
 
 	void Reset()
 	{
@@ -29,10 +29,10 @@ struct LinearAllocator
 #define ALLOCATOR_DEFAULT_COMMIT_CHUNK_SIZE DX_KB(4ull)
 #define ALLOCATOR_DEFAULT_DECOMMIT_LEFTOVER_SIZE ALLOCATOR_DEFAULT_COMMIT_CHUNK_SIZE
 
-	uint8_t* base_ptr;
-	uint8_t* at_ptr;
-	uint8_t* end_ptr;
-	uint8_t* committed_ptr;
+	uint8_t* base_ptr = nullptr;
+	uint8_t* at_ptr = nullptr;
+	uint8_t* end_ptr = nullptr;
+	uint8_t* committed_ptr = nullptr;
 
 #ifdef TRACK_LOCAL_MEMORY_STATISTICS
 	MemoryStatistics memory_stats;
@@ -120,9 +120,9 @@ private:
 	}
 
 private:
-	LinearAllocator* m_alloc;
-	void* m_reset_ptr;
-	Destructor* m_destructor_list;
+	LinearAllocator* m_alloc = nullptr;
+	void* m_reset_ptr = nullptr;
+	Destructor* m_destructor_list = nullptr;
 
 };
 

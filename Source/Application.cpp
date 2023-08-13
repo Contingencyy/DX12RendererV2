@@ -5,6 +5,7 @@
 #include "Scene.h"
 #include "Input.h"
 #include "AssetManager.h"
+#include "CPUProfiler.h"
 
 #include "imgui/imgui.h"
 
@@ -22,6 +23,8 @@ namespace Application
 
 	struct InternalData
 	{
+		LinearAllocator alloc;
+
 		LARGE_INTEGER current_ticks, last_ticks;
 		LARGE_INTEGER frequency;
 		int64_t elapsed = 0;
@@ -50,6 +53,8 @@ namespace Application
 		// ----------------------------------------------------------------------------------
 		// Initialize core systems
 
+		CPUProfiler::Init();
+
 		Renderer::RendererInitParams renderer_init_params = {};
 		renderer_init_params.hWnd = Window::GetHWnd();
 		renderer_init_params.width = window_props.width;
@@ -75,6 +80,7 @@ namespace Application
 
 		AssetManager::Exit();
 		Renderer::Exit();
+		CPUProfiler::Exit();
 
 		Window::Destroy();
 
@@ -154,8 +160,11 @@ namespace Application
 
 		// Render ImGui
 		Renderer::BeginImGuiFrame();
+
 		Application::OnImGuiRender();
 		Renderer::OnImGuiRender();
+		CPUProfiler::OnImGuiRender();
+
 		Renderer::RenderImGui();
 
 		// End the frame, swap buffers

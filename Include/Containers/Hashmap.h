@@ -25,7 +25,7 @@ public:
     const Hashmap& operator=(const Hashmap& other) = delete;
     Hashmap&& operator=(Hashmap&& other) = delete;
 
-    void Insert(TKey key, TValue value)
+    TValue* Insert(TKey key, TValue value)
     {
         // TODO: Automatically grow hashmap?
         DX_ASSERT(m_size < m_capacity && "Failed to insert key value pair into hashmap");
@@ -43,8 +43,12 @@ public:
             node_index %= m_capacity;
         }
 
+        // TODO: This will break horribly if the entire map is full and the assert did not fire on RELEASE builds.
+        // Finally implement buckets instead!!
         m_nodes[node_index] = temp;
         m_size++;
+
+        return &m_nodes[node_index].value;
     }
 
     void Remove(TKey key)
@@ -112,6 +116,8 @@ public:
 
             m_nodes[i].key = NODE_UNUSED;
         }
+
+        m_size = 0;
     }
 
 private:

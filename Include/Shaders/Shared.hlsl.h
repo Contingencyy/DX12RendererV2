@@ -6,6 +6,9 @@
 #define float2 Vec2
 #define float3 Vec3
 #define float4 Vec4
+#define CPP_HLSL_STRUCT(x) struct alignas(16) x
+#else
+#define CPP_HLSL_STRUCT(x) struct x
 #endif
 
 #define PBR_DIFFUSE_BRDF_LAMBERT	0
@@ -21,14 +24,13 @@
 
 struct RenderSettings
 {
-	struct PBR
+	CPP_HLSL_STRUCT(PBR)
 	{
 		uint use_linear_perceptual_roughness;
 		uint diffuse_brdf;
-		float2 _pad;
 	} pbr;
 
-	struct PostProcess
+	CPP_HLSL_STRUCT(PostProcess)
 	{
 		uint tonemap_operator;
 		float gamma;

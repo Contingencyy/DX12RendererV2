@@ -9,6 +9,7 @@
 #include "LinearAllocator.h"
 #include "DXMath.h"
 #include "Hash.h"
+#include "CPUProfiler.h"
 
 using namespace DXMath;
 

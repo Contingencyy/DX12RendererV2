@@ -183,10 +183,19 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Extern\implot\implot.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Extern\implot\implot_items.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="Extern\mikkt\mikktspace.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Source\CPUProfiler.cpp" />
     <ClCompile Include="Source\LinearAllocator.cpp" />
     <ClCompile Include="Source\AssetManager.cpp" />
     <ClCompile Include="Source\FileIO.cpp" />
@@ -208,7 +217,10 @@ xcopy /q /y "$(SolutionDir)Extern\D3D12Agility\build\native\bin\x64\d3d12SDKLaye
     <ClInclude Include="Extern\imgui\imgui.h" />
     <ClInclude Include="Extern\imgui\imgui_impl_dx12.h" />
     <ClInclude Include="Extern\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="Extern\implot\implot.h" />
+    <ClInclude Include="Extern\implot\implot_internal.h" />
     <ClInclude Include="Include\Containers\Hashmap.h" />
+    <ClInclude Include="Include\CPUProfiler.h" />
     <ClInclude Include="Include\LinearAllocator.h" />
     <ClInclude Include="Include\Application.h" />
     <ClInclude Include="Include\AssetManager.h" />
