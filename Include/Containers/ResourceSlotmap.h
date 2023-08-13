@@ -123,8 +123,8 @@ public:
 		TResource resource;
 	};
 
-	MemoryScope* m_memory_scope;
-	Slot* m_slots;
-	size_t m_capacity;
+	MemoryScope* m_memory_scope = nullptr;
+	Slot* m_slots = nullptr;
+	size_t m_capacity = 0;
 
 };

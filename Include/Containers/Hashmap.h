@@ -133,10 +133,10 @@ public:
         TValue value;
     };
 
-    MemoryScope* m_memory_scope;
-    size_t m_capacity;
-    size_t m_size;
+    MemoryScope* m_memory_scope = nullptr;
+    size_t m_capacity = 0;
+    size_t m_size = 0;
 
-    Node* m_nodes;
+    Node* m_nodes = nullptr;
 
 };

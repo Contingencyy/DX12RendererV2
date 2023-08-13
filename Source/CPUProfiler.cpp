@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "CPUProfiler.h"
 #include "Containers/Hashmap.h"
+#include "Renderer/D3DState.h"
 
 #include "imgui/imgui.h"
 #include "implot/implot.h"
@@ -33,17 +34,16 @@ namespace CPUProfiler
 
 	struct TimerStack
 	{
-		TimerStack(const char* name)
+		TimerStack(MemoryScope* mem_scope, const char* name)
 			: name(name)
 		{
-			// NOTE: We can use the thread allocator to allocate these timers
-			head = (Timer*)g_thread_alloc.Allocate(sizeof(Timer), alignof(Timer));
-			head->next = nullptr;
+			graph_data_buffer = mem_scope->Allocate<double>(CPU_PROFILER_GRAPH_HISTORY_LENGTH);
 		}
 
 		// Pushes a new timer to the linked list head, and returns it
 		Timer* PushTimer()
 		{
+			// NOTE: We can use the thread allocator to allocate these timers
 			Timer* temp = (Timer*)alloc.Allocate(sizeof(Timer), alignof(Timer));
 			temp->next = head;
 			head = temp;
@@ -61,9 +61,11 @@ namespace CPUProfiler
 		}
 
 		LinearAllocator alloc;
+
 		Timer* head = nullptr;
 		const char* name = nullptr;
 		int64_t accumulator = 0;
+		double* graph_data_buffer = nullptr;
 	};
 
 	struct InternalData
@@ -71,18 +73,25 @@ namespace CPUProfiler
 		LinearAllocator alloc;
 		MemoryScope memory_scope;
 
-		Hashmap<const char*, TimerStack>* timer_stacks;
-		int64_t timer_freq;
+		Hashmap<const char*, TimerStack>* timer_stacks = nullptr;
+		int64_t timer_freq = 0;
+
+		int graph_data_size = 0;
+		int graph_current_data_index = 0;
+		double* graph_xaxis_data = nullptr;
+		float graph_history_length = CPU_PROFILER_GRAPH_HISTORY_LENGTH;
 	} static data;
 
 	void Init()
 	{
 		data.memory_scope = MemoryScope(&data.alloc, data.alloc.at_ptr);
-		data.timer_stacks = data.memory_scope.New<Hashmap<const char*, TimerStack>>(&data.memory_scope, MAX_UNIQUE_CPU_TIMERS);
+		data.timer_stacks = data.memory_scope.New<Hashmap<const char*, TimerStack>>(&data.memory_scope, CPU_PROFILER_MAX_CPU_TIMERS);
 		
 		LARGE_INTEGER timer_freq;
 		QueryPerformanceFrequency(&timer_freq);
 		data.timer_freq = timer_freq.QuadPart;
+
+		data.graph_xaxis_data = data.memory_scope.Allocate<double>(CPU_PROFILER_GRAPH_HISTORY_LENGTH);
 	}
 
 	void Exit()
@@ -96,7 +105,7 @@ namespace CPUProfiler
 		TimerStack* stack = data.timer_stacks->Find(name);
 		if (!stack)
 		{
-			stack = data.timer_stacks->Insert(name, TimerStack(name));
+			stack = data.timer_stacks->Insert(name, TimerStack(&data.memory_scope, name));
 		}
 
 		// Push a timer on top of the timer stack, and update its starting timestamp
@@ -123,30 +132,53 @@ namespace CPUProfiler
 
 	void OnImGuiRender()
 	{
+		data.graph_xaxis_data[data.graph_current_data_index] = (double)d3d_state.frame_index;
+		data.graph_data_size = DX_MIN(++data.graph_data_size, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
+
 		ImGui::Begin("CPU Profiler");
 
-		// TODO: If we cache the used cpu profiling names for this frame, we can simply fetch all of them from the hashmap
-		for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
+		ImGui::SliderFloat("Graph history length", &data.graph_history_length, 10.0, CPU_PROFILER_GRAPH_HISTORY_LENGTH, "%.f", ImGuiSliderFlags_AlwaysClamp);
+
+		if (ImPlot::BeginPlot("CPU Timers", ImVec2(-1, -1), ImPlotFlags_Crosshairs | ImPlotFlags_NoMouseText))
 		{
-			Hashmap<const char*, TimerStack>::Node* node = &data.timer_stacks->m_nodes[node_idx];
+			ImPlot::SetupAxisFormat(ImAxis_X1, "%.0f");
+			ImPlot::SetupAxis(ImAxis_X1, "Frame index", ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_Foreground);
+			ImPlot::SetupAxisLimits(ImAxis_X1, data.graph_xaxis_data[data.graph_current_data_index] - data.graph_history_length,
+				data.graph_xaxis_data[data.graph_current_data_index], ImPlotCond_Always);
 			
-			if (node->key == Hashmap<const char*, TimerStack>::NODE_UNUSED)
+			ImPlot::SetupAxisFormat(ImAxis_Y1, "%.3f ms");
+			ImPlot::SetupAxis(ImAxis_Y1, "Timers", ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_Foreground);
+
+			// TODO: If we cache the used cpu profiling names for this frame, we can simply fetch all of them from the hashmap instead of traversing
+			// the entire map, which has a lot of empty space potentially.
+			for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
 			{
-				continue;
+				Hashmap<const char*, TimerStack>::Node* node = &data.timer_stacks->m_nodes[node_idx];
+			
+				if (node->key == Hashmap<const char*, TimerStack>::NODE_UNUSED)
+				{
+					continue;
+				}
+
+				TimerStack* stack = &node->value;
+				stack->graph_data_buffer[data.graph_current_data_index] = TimestampToMillis(stack->accumulator, data.timer_freq);
+
+				// TODO: Triple buffer the timers properly, so that they match with the GPU timers we will add later
+				ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
+				ImPlot::PlotLine(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
+					ImPlotLineFlags_None, data.graph_current_data_index);
+				ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
+				ImPlot::PlotShaded(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
+					0.0, ImPlotShadedFlags_None, data.graph_current_data_index);
+				//ImGui::Text("%s: %.3f ms", stack->name, TimestampToMillis(stack->accumulator, data.timer_freq));
 			}
 
-			TimerStack* stack = &node->value;
-			ImGui::Text("%s: %f ms", stack->name, TimestampToMillis(stack->accumulator, data.timer_freq));
+			ImPlot::EndPlot();
 		}
 
-		/*if (ImPlot::BeginPlot("", ImVec2(-1, -1), ImPlotFlags_Crosshairs | ImPlotFlags_NoMouseText))
-		{
-			
-			
-			ImPlot::EndPlot();
-		}*/
-
 		ImGui::End();
+
+		data.graph_current_data_index = (data.graph_current_data_index + 1) % CPU_PROFILER_GRAPH_HISTORY_LENGTH;
 	}
 
 }

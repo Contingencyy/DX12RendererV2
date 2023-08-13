@@ -3,7 +3,8 @@
 namespace CPUProfiler
 {
 
-#define MAX_UNIQUE_CPU_TIMERS 64
+#define CPU_PROFILER_MAX_CPU_TIMERS 64
+#define CPU_PROFILER_GRAPH_HISTORY_LENGTH 10000
 
 	void Init();
 	void Exit();
