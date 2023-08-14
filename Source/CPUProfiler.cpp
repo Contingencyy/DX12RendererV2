@@ -134,6 +134,7 @@ namespace CPUProfiler
 	{
 		data.graph_xaxis_data[data.graph_current_data_index] = (double)d3d_state.frame_index;
 		data.graph_data_size = DX_MIN(++data.graph_data_size, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
+		int data_graph_next_index = (data.graph_current_data_index + CPU_PROFILER_GRAPH_HISTORY_LENGTH + 1) % CPU_PROFILER_GRAPH_HISTORY_LENGTH;
 
 		ImGui::Begin("CPU Profiler");
 
@@ -166,10 +167,10 @@ namespace CPUProfiler
 				// TODO: Triple buffer the timers properly, so that they match with the GPU timers we will add later
 				ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
 				ImPlot::PlotLine(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
-					ImPlotLineFlags_None, data.graph_current_data_index);
+					ImPlotLineFlags_None, data_graph_next_index);
 				ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
 				ImPlot::PlotShaded(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
-					0.0, ImPlotShadedFlags_None, data.graph_current_data_index);
+					0.0, ImPlotShadedFlags_None, data_graph_next_index);
 				//ImGui::Text("%s: %.3f ms", stack->name, TimestampToMillis(stack->accumulator, data.timer_freq));
 			}
 
