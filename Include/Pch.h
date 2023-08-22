@@ -72,3 +72,11 @@ using namespace DXMath;
 #ifdef TRANSPARENT
 #undef TRANSPARENT
 #endif
+
+#ifdef min
+#undef min
+#endif
+
+#ifdef max
+#undef max
+#endif

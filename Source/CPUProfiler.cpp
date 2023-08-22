@@ -66,6 +66,8 @@ namespace CPUProfiler
 		const char* name = nullptr;
 		int64_t accumulator = 0;
 		double* graph_data_buffer = nullptr;
+		double min = DBL_MAX, max = DBL_MIN, avg_accumulator = 0.0, avg = 0.0;
+		uint32_t min_index = 0, max_index = 0;
 	};
 
 	struct InternalData
@@ -146,47 +148,113 @@ namespace CPUProfiler
 			}
 
 			TimerStack* stack = &node->value;
+			double prev_value = stack->graph_data_buffer[data.graph_current_data_index];
+
 			stack->graph_data_buffer[data.graph_current_data_index] = TimestampToMillis(stack->accumulator, data.timer_freq);
+			stack->min = DX_MIN(stack->min, stack->graph_data_buffer[data.graph_current_data_index]);
+			stack->max = DX_MAX(stack->max, stack->graph_data_buffer[data.graph_current_data_index]);
+			stack->avg_accumulator -= prev_value;
+			stack->avg_accumulator += stack->graph_data_buffer[data.graph_current_data_index];
+			stack->avg = stack->avg_accumulator / data.graph_data_size;
 		}
 
 		ImGui::Begin("CPU Profiler");
 
-		ImGui::SliderFloat("Graph history length", &data.graph_history_length, 10.0, CPU_PROFILER_GRAPH_HISTORY_LENGTH, "%.f", ImGuiSliderFlags_AlwaysClamp);
+		// --------------------------------------------------------------------------------------------------------------------------
+		// CPU Timer stats
 
-		if (ImPlot::BeginPlot("CPU Timers", ImVec2(-1, -1), ImPlotFlags_Crosshairs | ImPlotFlags_NoMouseText))
+		if (ImGui::CollapsingHeader("CPU Timer stats"))
 		{
-			ImPlot::SetupAxisFormat(ImAxis_X1, "%.0f");
-			ImPlot::SetupAxis(ImAxis_X1, "Frame index", ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_Foreground);
-			ImPlot::SetupAxisLimits(ImAxis_X1, data.graph_xaxis_data[data.graph_current_data_index] - data.graph_history_length,
-				data.graph_xaxis_data[data.graph_current_data_index], ImPlotCond_Always);
-			
-			ImPlot::SetupAxisFormat(ImAxis_Y1, "%.3f ms");
-			ImPlot::SetupAxis(ImAxis_Y1, "Timers", ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_Foreground);
+			// TODO: The CPU Profiler should be able to determine the current min and max values from the timer stack data buffers
+			// instead of resetting them
+			bool reset_min_max = false;
+			reset_min_max = ImGui::Button("Reset Min/Max");
 
-			// TODO: If we cache the used cpu profiling names for this frame, we can simply fetch all of them from the hashmap instead of traversing
-			// the entire map, which has a lot of empty space potentially.
-			for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
+			if (ImGui::BeginTable("CPU Timer table", 4, ImGuiTableFlags_NoBordersInBody | ImGuiTableFlags_SizingFixedFit))
 			{
-				Hashmap<const char*, TimerStack>::Node* node = &data.timer_stacks->m_nodes[node_idx];
-			
-				if (node->key == Hashmap<const char*, TimerStack>::NODE_UNUSED)
+				ImGui::TableNextColumn();
+				ImGui::Text("Timer");
+				ImGui::TableNextColumn();
+				ImGui::Text("Min");
+				ImGui::TableNextColumn();
+				ImGui::Text("Avg");
+				ImGui::TableNextColumn();
+				ImGui::Text("Max");
+
+				for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
 				{
-					continue;
+					Hashmap<const char*, TimerStack>::Node* node = &data.timer_stacks->m_nodes[node_idx];
+
+					if (node->key == Hashmap<const char*, TimerStack>::NODE_UNUSED)
+					{
+						continue;
+					}
+
+					ImGui::TableNextRow();
+
+					TimerStack* stack = &node->value;
+					ImGui::TableNextColumn();
+					ImGui::Text("%s", stack->name);
+					ImGui::TableNextColumn();
+					ImGui::Text("%.3f ms", stack->min);
+					ImGui::TableNextColumn();
+					ImGui::Text("%.3f ms", stack->avg);
+					ImGui::TableNextColumn();
+					ImGui::Text("%.3f ms", stack->max);
+
+					if (reset_min_max)
+					{
+						stack->min = DBL_MAX;
+						stack->max = DBL_MIN;
+					}
 				}
 
-				TimerStack* stack = &node->value;
-
-				// TODO: Triple buffer the timers properly, so that they match with the GPU timers we will add later
-				ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
-				ImPlot::PlotLine(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
-					ImPlotLineFlags_None, data_graph_next_index);
-				ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
-				ImPlot::PlotShaded(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
-					0.0, ImPlotShadedFlags_None, data_graph_next_index);
-				//ImGui::Text("%s: %.3f ms", stack->name, TimestampToMillis(stack->accumulator, data.timer_freq));
+				ImGui::EndTable();
 			}
+		}
 
-			ImPlot::EndPlot();
+		// --------------------------------------------------------------------------------------------------------------------------
+		// CPU Timer graph
+
+		if (ImGui::CollapsingHeader("CPU Timer graph"))
+		{
+			ImGui::SliderFloat("Graph history length", &data.graph_history_length, 10.0, CPU_PROFILER_GRAPH_HISTORY_LENGTH, "%.f", ImGuiSliderFlags_AlwaysClamp);
+
+			if (ImPlot::BeginPlot("CPU Timers", ImVec2(-1, -1), ImPlotFlags_Crosshairs | ImPlotFlags_NoMouseText))
+			{
+				ImPlot::SetupAxisFormat(ImAxis_X1, "%.0f");
+				ImPlot::SetupAxis(ImAxis_X1, "Frame index", ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_Foreground);
+				ImPlot::SetupAxisLimits(ImAxis_X1, data.graph_xaxis_data[data.graph_current_data_index] - data.graph_history_length,
+					data.graph_xaxis_data[data.graph_current_data_index], ImPlotCond_Always);
+
+				ImPlot::SetupAxisFormat(ImAxis_Y1, "%.3f ms");
+				ImPlot::SetupAxis(ImAxis_Y1, "Timers", ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_Foreground);
+
+				// TODO: If we cache the used cpu profiling names for this frame, we can simply fetch all of them from the hashmap instead of traversing
+				// the entire map, which has a lot of empty space potentially.
+				for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
+				{
+					Hashmap<const char*, TimerStack>::Node* node = &data.timer_stacks->m_nodes[node_idx];
+
+					if (node->key == Hashmap<const char*, TimerStack>::NODE_UNUSED)
+					{
+						continue;
+					}
+
+					TimerStack* stack = &node->value;
+
+					// TODO: Triple buffer the timers properly, so that they match with the GPU timers we will add later
+					ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
+					ImPlot::PlotLine(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
+						ImPlotLineFlags_None, data_graph_next_index);
+					ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
+					ImPlot::PlotShaded(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
+						0.0, ImPlotShadedFlags_None, data_graph_next_index);
+					//ImGui::Text("%s: %.3f ms", stack->name, TimestampToMillis(stack->accumulator, data.timer_freq));
+				}
+
+				ImPlot::EndPlot();
+			}
 		}
 
 		ImGui::End();
