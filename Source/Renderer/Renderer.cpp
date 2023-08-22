@@ -281,7 +281,7 @@ namespace Renderer
 		swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		swap_chain_desc.Stereo = FALSE;
 		swap_chain_desc.SampleDesc = { 1, 0 };
-		swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		swap_chain_desc.BufferUsage = DXGI_USAGE_BACK_BUFFER;
 		swap_chain_desc.BufferCount = DX_BACK_BUFFER_COUNT;
 		swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
 		swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
@@ -758,7 +758,7 @@ namespace Renderer
 		uint32_t sync_interval = d3d_state.vsync_enabled ? 1 : 0;
 		uint32_t present_flags = d3d_state.tearing_supported && !d3d_state.vsync_enabled ? DXGI_PRESENT_ALLOW_TEARING : 0;
 		DX_CHECK_HR(d3d_state.swapchain->Present(sync_interval, present_flags));
-
+		
 		// ----------------------------------------------------------------------------------
 		// Signal the GPU with the fence value for the current frame, and set the current back buffer index to the next one
 

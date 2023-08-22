@@ -79,7 +79,7 @@ namespace CPUProfiler
 		int graph_data_size = 0;
 		int graph_current_data_index = 0;
 		double* graph_xaxis_data = nullptr;
-		float graph_history_length = CPU_PROFILER_GRAPH_HISTORY_LENGTH;
+		float graph_history_length = DX_MIN(1000, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
 	} static data;
 
 	void Init()
@@ -136,6 +136,19 @@ namespace CPUProfiler
 		data.graph_data_size = DX_MIN(++data.graph_data_size, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
 		int data_graph_next_index = (data.graph_current_data_index + CPU_PROFILER_GRAPH_HISTORY_LENGTH + 1) % CPU_PROFILER_GRAPH_HISTORY_LENGTH;
 
+		for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
+		{
+			Hashmap<const char*, TimerStack>::Node* node = &data.timer_stacks->m_nodes[node_idx];
+
+			if (node->key == Hashmap<const char*, TimerStack>::NODE_UNUSED)
+			{
+				continue;
+			}
+
+			TimerStack* stack = &node->value;
+			stack->graph_data_buffer[data.graph_current_data_index] = TimestampToMillis(stack->accumulator, data.timer_freq);
+		}
+
 		ImGui::Begin("CPU Profiler");
 
 		ImGui::SliderFloat("Graph history length", &data.graph_history_length, 10.0, CPU_PROFILER_GRAPH_HISTORY_LENGTH, "%.f", ImGuiSliderFlags_AlwaysClamp);
@@ -162,7 +175,6 @@ namespace CPUProfiler
 				}
 
 				TimerStack* stack = &node->value;
-				stack->graph_data_buffer[data.graph_current_data_index] = TimestampToMillis(stack->accumulator, data.timer_freq);
 
 				// TODO: Triple buffer the timers properly, so that they match with the GPU timers we will add later
 				ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
