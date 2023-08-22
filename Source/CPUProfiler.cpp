@@ -155,7 +155,7 @@ namespace CPUProfiler
 			stack->max = DX_MAX(stack->max, stack->graph_data_buffer[data.graph_current_data_index]);
 			stack->avg_accumulator -= prev_value;
 			stack->avg_accumulator += stack->graph_data_buffer[data.graph_current_data_index];
-			stack->avg = stack->avg_accumulator / data.graph_data_size;
+			stack->avg = stack->avg_accumulator / (double)data.graph_data_size;
 		}
 
 		ImGui::Begin("CPU Profiler");
@@ -163,6 +163,7 @@ namespace CPUProfiler
 		// --------------------------------------------------------------------------------------------------------------------------
 		// CPU Timer stats
 
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("CPU Timer stats"))
 		{
 			// TODO: The CPU Profiler should be able to determine the current min and max values from the timer stack data buffers
@@ -216,6 +217,7 @@ namespace CPUProfiler
 		// --------------------------------------------------------------------------------------------------------------------------
 		// CPU Timer graph
 
+		ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 		if (ImGui::CollapsingHeader("CPU Timer graph"))
 		{
 			ImGui::SliderFloat("Graph history length", &data.graph_history_length, 10.0, CPU_PROFILER_GRAPH_HISTORY_LENGTH, "%.f", ImGuiSliderFlags_AlwaysClamp);
