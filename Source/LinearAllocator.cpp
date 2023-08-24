@@ -111,6 +111,10 @@ void LinearAllocator::Reset()
 
 void LinearAllocator::Reset(void* ptr)
 {
+	// TODO: If we had to align the pointer for the allocation previously, we will lose memory here
+	// Example: Our base pointer starts at 0x4004, but we need to align the allocation to 16 bytes, so now we would allocate from
+	// 0x4010, and then resetting to that pointer again, so we lose 12 bytes of memory.
+	// A potential solution is to store the reset pointer in the front of the allocation (similarly to how we store destructors in the MemoryScope)
 	if (ptr)
 	{
 		// Reset the current at pointer to a previous state

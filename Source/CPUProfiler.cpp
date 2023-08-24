@@ -78,8 +78,8 @@ namespace CPUProfiler
 		Hashmap<const char*, TimerStack>* timer_stacks = nullptr;
 		int64_t timer_freq = 0;
 
-		int graph_data_size = 0;
-		int graph_current_data_index = 0;
+		int32_t graph_data_size = 0;
+		int32_t graph_current_data_index = 0;
 		double* graph_xaxis_data = nullptr;
 		float graph_history_length = DX_MIN(1000, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
 	} static data;
@@ -136,7 +136,7 @@ namespace CPUProfiler
 	{
 		data.graph_xaxis_data[data.graph_current_data_index] = (double)d3d_state.frame_index;
 		data.graph_data_size = DX_MIN(++data.graph_data_size, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
-		int data_graph_next_index = (data.graph_current_data_index + CPU_PROFILER_GRAPH_HISTORY_LENGTH + 1) % CPU_PROFILER_GRAPH_HISTORY_LENGTH;
+		int32_t data_graph_next_index = (data.graph_current_data_index + CPU_PROFILER_GRAPH_HISTORY_LENGTH + 1) % CPU_PROFILER_GRAPH_HISTORY_LENGTH;
 
 		for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
 		{
