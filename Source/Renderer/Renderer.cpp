@@ -1048,7 +1048,7 @@ namespace Renderer
 			{
 				for (uint32_t tonemap_operator = 0; tonemap_operator < TONEMAP_OP_NUM_TYPES; ++tonemap_operator)
 				{
-					bool is_selected = tonemap_operator == data.settings.pbr.diffuse_brdf;
+					bool is_selected = tonemap_operator == data.settings.post_process.tonemap_operator;
 					if (ImGui::Selectable(TonemapOperatorName(tonemap_operator), is_selected))
 					{
 						data.settings.post_process.tonemap_operator = tonemap_operator;

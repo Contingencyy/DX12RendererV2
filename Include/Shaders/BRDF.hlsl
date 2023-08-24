@@ -71,8 +71,9 @@ void EvaluateBRDF(float3 view_dir, float3 light_dir, float3 base_color, float3 n
     // Specular BRDF (Fr)
     brdf_specular = (D * V) * F;
     
-    // Diffuse color, Diffuse BRDF (Fd)
-    float3 diffuse_color = (1.0 - F) * (1.0 - metallic) * base_color;
+    // Diffuse color, Diffuse BRDF (Fd), remapped based on metalness
+    float3 diffuse_color = (1.0 - metallic) * base_color;
+    
     switch (g_settings.pbr.diffuse_brdf)
     {
         case PBR_DIFFUSE_BRDF_LAMBERT:
