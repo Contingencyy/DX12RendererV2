@@ -4,16 +4,18 @@
 
 void* Realloc(void* ptr, size_t old_size, size_t new_size)
 {
-    void* new_ptr = g_thread_alloc.Allocate(new_size, 1);
+    void* new_ptr = g_thread_alloc.Allocate(new_size, 4);
     memcpy(new_ptr, ptr, old_size);
     return new_ptr;
 }
 
 #define STB_IMAGE_IMPLEMENTATION
-#define STBI_MALLOC(size) g_thread_alloc.Allocate(size, 1)
+#define STBI_MALLOC(size) g_thread_alloc.Allocate(size, 16)
 #define STBI_REALLOC_SIZED(ptr, old_size, new_size) Realloc(ptr, old_size, new_size)
-// TODO: This should be a noop, it would be nicer if each asset upload had its own memory scope
-#define STBI_FREE(ptr) g_thread_alloc.Reset(ptr)
+// Note: Freeing the memory is a no-op
+// TODO: It would be nicer if each asset upload had its own memory scope/allocator
+// but it should probably not own the underlying memory
+#define STBI_FREE(ptr)
 #include "stb_image/stb_image.h"
 #include "cgltf/cgltf.h"
 
