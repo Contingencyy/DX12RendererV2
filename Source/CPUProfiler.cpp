@@ -43,8 +43,9 @@ namespace CPUProfiler
 		// Pushes a new timer to the linked list head, and returns it
 		Timer* PushTimer()
 		{
-			// NOTE: We can use the thread allocator to allocate these timers
-			Timer* temp = (Timer*)alloc.Allocate(sizeof(Timer), alignof(Timer));
+			// NOTE: We use the thread allocator for timer allocations, otherwise we would need to do manual
+			// cleanup, or keep a free-list of timers
+			Timer* temp = (Timer*)g_thread_alloc.Allocate(sizeof(Timer), alignof(Timer));
 			temp->next = head;
 			head = temp;
 
