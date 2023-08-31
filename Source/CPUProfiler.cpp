@@ -248,11 +248,9 @@ namespace CPUProfiler
 					TimerStack* stack = &node->value;
 
 					// TODO: Triple buffer the timers properly, so that they match with the GPU timers we will add later
-					DX_PERF_START("GRAPH");
 					ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
 					ImPlot::PlotLine(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
 						ImPlotLineFlags_Shaded, data_graph_next_index - data.graph_data_size);
-					DX_PERF_END("GRAPH");
 				}
 				ImPlot::EndPlot();
 			}
