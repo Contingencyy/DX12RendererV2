@@ -82,7 +82,7 @@ namespace CPUProfiler
 		int32_t graph_data_size = 0;
 		int32_t graph_current_data_index = 0;
 		double* graph_xaxis_data = nullptr;
-		float graph_history_length = DX_MIN(1000, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
+		float graph_history_length = DX_MIN(500, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
 	} static data;
 
 	void Init()
@@ -136,8 +136,8 @@ namespace CPUProfiler
 	void OnImGuiRender()
 	{
 		data.graph_xaxis_data[data.graph_current_data_index] = (double)d3d_state.frame_index;
-		data.graph_data_size = DX_MIN(++data.graph_data_size, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
-		int32_t data_graph_next_index = (data.graph_current_data_index + CPU_PROFILER_GRAPH_HISTORY_LENGTH + 1) % CPU_PROFILER_GRAPH_HISTORY_LENGTH;
+		data.graph_data_size = DX_MIN(data.graph_data_size++, CPU_PROFILER_GRAPH_HISTORY_LENGTH);
+		int32_t data_graph_next_index = (data.graph_current_data_index + 1) % CPU_PROFILER_GRAPH_HISTORY_LENGTH;
 
 		for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
 		{
@@ -234,7 +234,8 @@ namespace CPUProfiler
 				ImPlot::SetupAxis(ImAxis_Y1, "Timers", ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_RangeFit | ImPlotAxisFlags_Foreground);
 
 				// TODO: If we cache the used cpu profiling names for this frame, we can simply fetch all of them from the hashmap instead of traversing
-				// the entire map, which has a lot of empty space potentially.
+				// the entire map, which has a lot of empty space potentially. Or even better, keep pointers to timer stacks around for the current frame
+				// in a linked list, so we do not need to hash again just to fetch data we could already have from before.
 				for (uint32_t node_idx = 0; node_idx < data.timer_stacks->m_capacity; ++node_idx)
 				{
 					Hashmap<const char*, TimerStack>::Node* node = &data.timer_stacks->m_nodes[node_idx];
@@ -247,15 +248,12 @@ namespace CPUProfiler
 					TimerStack* stack = &node->value;
 
 					// TODO: Triple buffer the timers properly, so that they match with the GPU timers we will add later
+					DX_PERF_START("GRAPH");
 					ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
 					ImPlot::PlotLine(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
-						ImPlotLineFlags_None, data_graph_next_index);
-					ImPlot::SetNextFillStyle(IMPLOT_AUTO_COL, 0.3);
-					ImPlot::PlotShaded(stack->name, data.graph_xaxis_data, stack->graph_data_buffer, data.graph_data_size,
-						0.0, ImPlotShadedFlags_None, data_graph_next_index);
-					//ImGui::Text("%s: %.3f ms", stack->name, TimestampToMillis(stack->accumulator, data.timer_freq));
+						ImPlotLineFlags_Shaded, data_graph_next_index - data.graph_data_size);
+					DX_PERF_END("GRAPH");
 				}
-
 				ImPlot::EndPlot();
 			}
 		}
